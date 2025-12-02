@@ -94,7 +94,7 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
 
 .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; width: 100%; }
 .stat-item { color: #aaa; font-size: 14px; } .stat-val { color: #fff; font-weight: bold; margin-left: 2px; font-size: 15px; }
-.enemy-forecast-container { display: flex; align-items: center; background: #222; padding: 4px 10px; border-radius: 4px; margin-bottom: 4px; }
+.enemy-forecast-container { display: flex; align-items: center; background: #222; padding: 4px 10px; border-radius: 4px; margin-bottom: 4px; flex-grow: 1; margin-right: 10px; }
 .forecast-icon { width: 28px; height: 28px; background: #f88; color: #000; font-size: 16px; font-weight: bold; display: flex; justify-content: center; align-items: center; border-radius: 2px; }
 .forecast-icon.boss { background: #a00; color: #fff; border: 2px solid #ff0; box-shadow: 0 0 5px red; }
 
@@ -137,6 +137,18 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
     border-radius: 4px;
 }
 @keyframes glow { from { box-shadow: 0 0 0 4px #00ffff, 0 0 10px #00ffff; } to { box-shadow: 0 0 0 8px #00ffff, 0 0 25px #00ffff; } }
+
+/* スライダー用スタイル */
+input[type=range] {
+  -webkit-appearance: none; width: 100%; background: transparent;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%; background: #00eaff; cursor: pointer; margin-top: -8px; box-shadow: 0 0 5px rgba(0,234,255,0.5); border: 2px solid #fff;
+}
+input[type=range]::-webkit-slider-runnable-track {
+  width: 100%; height: 4px; cursor: pointer; background: #444; border-radius: 2px;
+}
+input[type=range]:focus { outline: none; }
 </style>
 </head>
 <body class="layout-lab">
@@ -171,6 +183,34 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
             </div>
         </div>
     </div>
+    
+    <!-- 設定モーダル追加 -->
+    <div id="settings-modal" class="modal-overlay">
+        <div class="bg-[#1a1a1a] border border-[#444] p-6 rounded-lg shadow-lg w-[85%] max-w-[350px] relative">
+            <h2 class="text-xl text-white font-bold mb-6 text-center border-b border-[#333] pb-2">設定</h2>
+            
+            <div class="mb-6">
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-gray-300 font-bold">BGM</label>
+                    <span class="text-[#00eaff] font-mono"><span id="bgm-vol-disp">30</span>%</span>
+                </div>
+                <input type="range" id="bgm-slider" min="0" max="100" value="30" class="w-full" oninput="app.setBgmVol(this.value)">
+            </div>
+            
+            <div class="mb-8">
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-gray-300 font-bold">効果音 (SE)</label>
+                    <span class="text-[#00eaff] font-mono"><span id="se-vol-disp">50</span>%</span>
+                </div>
+                <input type="range" id="se-slider" min="0" max="100" value="50" class="w-full" oninput="app.setSeVol(this.value)" onchange="app.testSe()">
+            </div>
+            
+            <div class="flex justify-center">
+                <button class="btn btn-primary px-8 py-2 text-lg" onclick="app.closeSettings()">閉じる</button>
+            </div>
+        </div>
+    </div>
+
     <div id="ui-layer">
         <div id="battle-ui">
             <div class="flex justify-between items-center mb-1 px-2 h-8 flex-shrink-0">
@@ -183,7 +223,14 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
             <div class="unit-deck" id="unit-deck-container"></div>
         </div>
         <div id="lab-screen">
-            <div class="enemy-forecast-container flex-shrink-0"><div class="text-xs text-[#aaa] mr-2">NEXT ENEMY:</div><div id="enemy-forecast-list" class="flex gap-1"></div></div>
+            <!-- 設定ボタンを追加 -->
+            <div class="flex justify-between items-center mb-1 flex-shrink-0 w-full">
+                <div class="enemy-forecast-container"><div class="text-xs text-[#aaa] mr-2">NEXT ENEMY:</div><div id="enemy-forecast-list" class="flex gap-1"></div></div>
+                <button class="btn btn-ink text-xs py-1 px-3 border-[#555] flex items-center gap-1" onclick="app.openSettings()">
+                    <span>⚙️</span> 設定
+                </button>
+            </div>
+            
             <div class="flex justify-between items-center mb-2 flex-shrink-0">
                 <div class="tab-container">
                     <button class="tab-btn active" onclick="app.switchTab('craft')">錬成</button>
@@ -231,28 +278,37 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
 <script>
 // ★追加: 音声ファイルパス設定（ユーザーが自由に置き換え可能）
 const AUDIO_ASSETS = {
-    bgm_battle: "Gang.mp3", // バトル中BGM (URL)
-    bgm_lab: "heisi.mp3",    // ラボ(編成)画面BGM (URL)
-    se_decide: "syamisen.mp3",  // 決定音
-    se_cancel: "click.mp3",  // キャンセル音
-    se_summon: "Hyoshigi03-1.mp3",  // 召喚音
-    se_attack: "attack.mp3",  // 攻撃音
-    se_damage: "",  // 被弾音
-    se_craft: "wataiko.mp3",   // 錬成音
-    se_win: "wafu-success.mp3",     // 勝利音
-    se_lose: "wafu-syakuhachi.mp3"     // 敗北音
+    // bgm_battle: "", // バトル中BGM (URL)
+    // bgm_lab: "",    // ラボ(編成)画面BGM (URL)
+    // se_decide: "",  // 決定音
+    // se_cancel: "",  // キャンセル音
+    // se_summon: "",  // 召喚音
+    // se_attack: "",  // 攻撃音
+    // se_damage: "",  // 被弾音
+    // se_craft: "",   // 錬成音
+    // se_win: "",     // 勝利音
+    // se_lose: ""     // 敗北音
 };
 
-// ★追加: サウンド管理クラス
+// ★修正: サウンド管理クラス (音量調整機能追加)
 class SoundManager {
     constructor() {
         this.bgm = null;
         this.currentBgmKey = null;
+        this.bgmVolume = 0.3; // デフォルト30%
+        this.seVolume = 0.5;  // デフォルト50%
+    }
+    setBgmVolume(v) {
+        this.bgmVolume = v;
+        if(this.bgm) this.bgm.volume = this.bgmVolume;
+    }
+    setSeVolume(v) {
+        this.seVolume = v;
     }
     playSE(key) {
         if (!AUDIO_ASSETS[key]) return;
         const audio = new Audio(AUDIO_ASSETS[key]);
-        audio.volume = 0.5;
+        audio.volume = this.seVolume;
         audio.play().catch(e=>{});
     }
     playBGM(key) {
@@ -267,7 +323,7 @@ class SoundManager {
         }
         this.bgm = new Audio(AUDIO_ASSETS[key]);
         this.bgm.loop = true;
-        this.bgm.volume = 0.3;
+        this.bgm.volume = this.bgmVolume;
         this.bgm.play().catch(e=>{});
         this.currentBgmKey = key;
     }
@@ -1060,6 +1116,30 @@ var app = {
         const c=document.getElementById('game-log-container'),d=document.createElement('div');
         d.className='game-log-msg';d.textContent=m;c.appendChild(d);
         setTimeout(()=>{d.remove()},2500);
+    },
+    // ★追加: 設定関連メソッド
+    openSettings: () => {
+        document.getElementById('settings-modal').style.display = 'flex';
+        // 現在の値をUIに反映
+        document.getElementById('bgm-slider').value = Math.floor(sound.bgmVolume * 100);
+        document.getElementById('bgm-vol-disp').textContent = Math.floor(sound.bgmVolume * 100);
+        document.getElementById('se-slider').value = Math.floor(sound.seVolume * 100);
+        document.getElementById('se-vol-disp').textContent = Math.floor(sound.seVolume * 100);
+    },
+    closeSettings: () => {
+        document.getElementById('settings-modal').style.display = 'none';
+        sound.playSE('se_cancel');
+    },
+    setBgmVol: (val) => {
+        document.getElementById('bgm-vol-disp').textContent = val;
+        sound.setBgmVolume(val / 100);
+    },
+    setSeVol: (val) => {
+        document.getElementById('se-vol-disp').textContent = val;
+        sound.setSeVolume(val / 100);
+    },
+    testSe: () => {
+        sound.playSE('se_decide'); // 音量確認用
     }
 };
 console.log("Lab init");lab.renderInv();
