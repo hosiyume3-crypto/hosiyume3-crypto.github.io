@@ -376,7 +376,7 @@ var KANJI_DB = {
     '鋼':{type:T.DUR,name:'鋼体',alias:'鋼鉄',cost:80,stats:{hp:1.8,kbResist:0.8},desc:'KB80%軽減'},
     '軽':{type:T.SPC,name:'軽量',alias:'羽毛',cost:80,stats:{hp:0.7,damage:0.7,costRate:0.6,respawnRate:0.6},desc:'能力低、コスト減'},
     /* ★修正: DURカテゴリーへ移動 */
-    '耐':{type:T.DUR,name:'耐性',alias:'金剛',cost:50,stats:{damage:0.2,costRate:0.4},desc:'攻撃激減、コスト減'},
+    '耐':{type:T.DUR,name:'耐性',alias:'金剛',cost:50,stats:{damage:0.2,costRate:0.6},desc:'攻撃激減、コスト40%減'},
     '狙':{type:T.SPC,name:'狙撃',alias:'必中',cost:100,effect:'crit',desc:'20%で2倍撃'},
     '幻':{type:T.SPC,name:'幻影',alias:'朧月',cost:100,effect:'dodge',desc:'20%で回避'},
     '双':{type:T.SPC,name:'双子',alias:'双子',cost:120,stats:{hp:0.5,damage:0.5},effect:'swarm',desc:'能力半減、2体出撃'},
@@ -387,7 +387,8 @@ var KANJI_DB = {
     '早':{type:T.SPC,name:'早出',alias:'迅速',cost:20,stats:{respawnRate:0.7},desc:'再出撃30%短縮'},
     '巨':{type:T.DUR,name:'巨大',alias:'巨神',cost:150,stats:{hp:2.5,damage:1.5,scale:1.5,kbResist:0.6},desc:'巨大化し能力大幅増'},
     '硬':{type:T.DUR,name:'硬化',alias:'堅牢',cost:60,stats:{hp:1.4,damage:0.9,kbResist:0.5},desc:'少し硬くなる'},
-    '壁':{type:T.DUR,name:'壁',alias:'絶壁',cost:120,stats:{hp:3.0,speed:0.1,kbResist:1.0},desc:'超耐久、移動ほぼ不可'},
+    // ★修正: 壁のHP倍率強化 3.0 -> 4.0
+    '壁':{type:T.DUR,name:'壁',alias:'絶壁',cost:120,stats:{hp:4.0,speed:0.1,kbResist:1.0},desc:'超耐久、移動ほぼ不可'},
     // ★追加: 凡庸な耐久文字2種
     '体':{type:T.DUR,name:'体力',alias:'肉体',cost:30,stats:{hp:1.4},desc:'体力を底上げする。'},
     '受':{type:T.DUR,name:'受け',alias:'抱擁',cost:20,stats:{hp:1.2,kbResist:0.3},desc:'衝撃を少し和らげる。'}
