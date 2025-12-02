@@ -89,8 +89,20 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
 .unit-thumb { height: 65px; background: #333; border: 2px solid #555; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; position: relative; }
 .unit-thumb.selected { border-color: #ff0; box-shadow: 0 0 5px gold; } .unit-thumb.in-deck { opacity: 0.5; border-color: #0f0; }
 .unit-thumb .unit-level-badge { position: absolute; top: 0; right: 0; background: #0055aa; color: white; font-size: 10px; padding: 2px 4px; border-radius: 0 0 0 4px; }
-.unit-detail-panel { background: #222; padding: 8px 12px; border: 1px solid #444; display: flex; justify-content: space-between; align-items: flex-start; font-size: 13px; height: 140px; flex-shrink: 0; overflow: hidden; }
-.unit-info-scroll { flex-grow: 1; overflow-y: auto; height: 100%; padding-right: 5px; }
+
+/* ユニット詳細パネルのレイアウト調整 */
+.unit-detail-panel { 
+    background: #222; padding: 8px 12px; border: 1px solid #444; 
+    display: flex; justify-content: space-between; align-items: flex-start; 
+    font-size: 13px; height: 170px; /* 高さを少し拡大 */ 
+    flex-shrink: 0; overflow: hidden; 
+}
+.unit-detail-right { display: flex; flex-direction: column; flex-grow: 1; height: 100%; overflow: hidden; padding-left: 8px; }
+.unit-info-scroll { flex-grow: 1; overflow-y: auto; }
+.unit-action-area { 
+    flex-shrink: 0; margin-top: 4px; padding-top: 6px; 
+    border-top: 1px solid #444; display: flex; justify-content: flex-end; gap: 8px; 
+}
 
 .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; width: 100%; }
 .stat-item { color: #aaa; font-size: 14px; } .stat-val { color: #fff; font-weight: bold; margin-left: 2px; font-size: 15px; }
@@ -246,7 +258,7 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
             </div>
             <div id="tab-deck" class="lab-content">
                 <div class="deck-edit-container">
-                    <div id="unit-detail-view" class="unit-detail-panel"><div class="text-gray-500 w-full text-center">ユニットを選択してください</div></div>
+                    <div id="unit-detail-view" class="unit-detail-panel"><div class="text-gray-500 w-full text-center flex items-center justify-center h-full">ユニットを選択してください</div></div>
                     <div class="text-xs px-1 text-gray-400 flex-shrink-0">出撃デッキ <span id="deck-cap-display">(5/5)</span></div>
                     <div class="deck-slots-area" id="deck-edit-slots"></div>
                     <div class="text-xs px-1 text-gray-400 flex-shrink-0">所持ユニット</div>
@@ -897,37 +909,41 @@ var LabSystem = class {
         const dv=document.getElementById('unit-detail-view');
         if(this.sel!==null&&game.recipes[this.sel]){
             const r=game.recipes[this.sel], dps=(r.stats.damage/(r.stats.cooldown/60)).toFixed(1), inD=game.deck.includes(this.sel), lvl=r.level||1, uc=lvl*50, rf=(r.chars.length*30)+(lvl*50);
+            
+            // ★修正: レイアウトを再構築してボタンを常時表示
             dv.innerHTML=`
-                <div class="flex flex-col items-center mr-3 min-w-[65px]">
+                <div class="flex flex-col items-center mr-2 min-w-[70px] justify-center h-full">
                     <div class="text-3xl font-bold text-white mb-1">${r.chars.join('')}</div>
-                    <div class="text-[10px] text-white font-bold mb-1 text-center leading-tight">${r.name}</div>
-                    <div class="text-[10px] text-cyan-300 font-bold mb-1 text-center leading-tight w-full break-words">${r.nickname || ''}</div>
-                    ${inD ? '<button class="btn btn-primary text-xs w-full py-1" onclick="lab.togDk()">外す</button>' : '<button class="btn btn-accent text-xs w-full py-1" onclick="lab.togDk()">編成</button>'}
+                    <div class="text-xs text-white font-bold mb-1 text-center leading-tight">${r.name}</div>
+                    <div class="text-[10px] text-cyan-300 font-bold mb-2 text-center leading-tight w-full break-words">${r.nickname || ''}</div>
+                    ${inD ? '<button class="btn btn-primary text-xs w-full py-2" onclick="lab.togDk()">外す</button>' : '<button class="btn btn-accent text-xs w-full py-2" onclick="lab.togDk()">編成</button>'}
                 </div>
-                <div class="unit-info-scroll">
-                    <div class="stat-grid mb-2">
-                        <div class="stat-item">体力:<span class="stat-val">${Math.floor(r.stats.hp)}</span></div>
-                        <div class="stat-item">攻撃力:<span class="stat-val">${Math.floor(r.stats.damage)}</span></div>
-                        <div class="stat-item">再出撃:<span class="stat-val">${(r.stats.respawnTime/60).toFixed(1)}s</span></div>
-                        <div class="stat-item">射程:<span class="stat-val">${Math.floor(r.stats.range)}</span></div>
-                        <div class="stat-item">移動速度:<span class="stat-val">${r.stats.speed.toFixed(1)}</span></div>
-                        <div class="stat-item">攻撃間隔:<span class="stat-val">${(r.stats.cooldown/60).toFixed(2)}s</span></div>
-                    </div>
-                    <div class="text-xs text-gray-300 mb-2 italic border-l-2 border-gray-500 pl-2">
-                        <div class="font-bold text-yellow-400 mb-1">【特殊効果】</div>
-                        <div class="flex flex-wrap gap-1 mb-1">
-                            ${r.effects.length > 0 ? r.effects.map(e => `<span class="bg-[#333] border border-[#555] px-1 rounded text-[10px]">${EFFECT_JP[e] || e}</span>`).join('') : '<span class="text-gray-500">なし</span>'}
-                            ${r.stats.isFlying ? '<span class="bg-[#333] border border-[#555] px-1 rounded text-[10px]">飛行</span>' : ''}
+                <div class="unit-detail-right">
+                    <div class="unit-info-scroll">
+                        <div class="stat-grid mb-2">
+                            <div class="stat-item">体力:<span class="stat-val">${Math.floor(r.stats.hp)}</span></div>
+                            <div class="stat-item">攻撃:<span class="stat-val">${Math.floor(r.stats.damage)}</span></div>
+                            <div class="stat-item">再出撃:<span class="stat-val">${(r.stats.respawnTime/60).toFixed(1)}s</span></div>
+                            <div class="stat-item">射程:<span class="stat-val">${Math.floor(r.stats.range)}</span></div>
+                            <div class="stat-item">速度:<span class="stat-val">${r.stats.speed.toFixed(1)}</span></div>
+                            <div class="stat-item">間隔:<span class="stat-val">${(r.stats.cooldown/60).toFixed(2)}s</span></div>
                         </div>
-                        <div class="text-gray-400">${r.desc || '―'}</div>
+                        <div class="text-xs text-gray-300 italic border-l-2 border-gray-500 pl-2">
+                            <div class="flex flex-wrap gap-1 mb-1">
+                                ${r.effects.length > 0 ? r.effects.map(e => `<span class="bg-[#333] border border-[#555] px-1 rounded text-[10px]">${EFFECT_JP[e] || e}</span>`).join('') : ''}
+                                ${r.stats.isFlying ? '<span class="bg-[#333] border border-[#555] px-1 rounded text-[10px]">飛行</span>' : ''}
+                                 ${(!r.effects.length && !r.stats.isFlying) ? '<span class="text-gray-500">特殊効果なし</span>' : ''}
+                            </div>
+                            <div class="text-gray-400 leading-tight">${r.desc || '―'}</div>
+                        </div>
                     </div>
-                    <div class="flex justify-end gap-2 mt-2">
-                        <button class="btn btn-ink text-[10px] py-1 px-3" ${game.bokuju<uc?'disabled':''} onclick="lab.lvlUp(${this.sel})">強化:${uc}</button>
-                        <button class="btn btn-danger text-[10px] py-1 px-3" onclick="lab.delU(${rf})">解雇(+${rf})</button>
+                    <div class="unit-action-area">
+                        <button class="btn btn-ink text-sm font-bold py-2 px-4 flex-1" ${game.bokuju<uc?'disabled':''} onclick="lab.lvlUp(${this.sel})">強化 (${uc})</button>
+                        <button class="btn btn-danger text-sm font-bold py-2 px-4 flex-1" onclick="lab.delU(${rf})">解雇 (+${rf})</button>
                     </div>
                 </div>`;
             tutorial.nextIf("select_unit");
-        }else dv.innerHTML=`<div class="text-gray-500 w-full text-center pt-8">ユニットを選択してください</div>`;
+        }else dv.innerHTML=`<div class="text-gray-500 w-full text-center flex items-center justify-center h-full">ユニットを選択してください</div>`;
     }
     selU(i){this.sel=i;this.renDk();}
     togDk(){
@@ -1109,6 +1125,3 @@ console.log("Lab init");lab.renderInv();
 </script>
 </body>
 </html>
-
-
-
