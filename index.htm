@@ -16,22 +16,22 @@ body { font-family: 'Noto Serif JP', serif; background: #1a1a1a; color: #f0f0f0;
 
 #game-container { position: relative; width: 100vw; height: 100vh; display: flex; flex-direction: column; transition: all 0.5s ease; }
 
-/* レイアウト調整 */
+/* レイアウト調整: LAB画面のUIエリアを大幅に拡大 */
 .layout-lab canvas { height: 15%; } 
 .layout-lab #ui-layer { height: 85%; }
 .layout-battle canvas { height: 75%; } 
 .layout-battle #ui-layer { height: 25%; }
 
 canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; display: block; transition: height 0.5s ease; }
+/* ★修正: z-indexを削除し、子要素がオーバーレイより手前に出られるようにする */
 #ui-layer { background: #0f0f0f; border-top: 2px solid #444; display: flex; flex-direction: column; padding: 8px; box-sizing: border-box; overflow: hidden; position: relative; transition: height 0.5s ease; }
 
-/* ボタンサイズ */
+/* ボタンサイズ拡大 */
 .btn { background: #333; border: 1px solid #666; color: white; padding: 6px 14px; border-radius: 6px; font-family: 'Noto Serif JP', serif; cursor: pointer; transition: 0.1s; font-size: 14px; white-space: nowrap; font-weight: bold; }
 .btn:active { transform: scale(0.95); } .btn:disabled { opacity: 0.5; cursor: not-allowed; background: #222; color: #555; }
 .btn-primary { background: #8b0000; border-color: #ff4444; } .btn-accent { background: #0055aa; border-color: #4488ff; }
 .btn-gold { background: #aa8800; border-color: #ffdd44; color: #fff; } .btn-danger { background: #550000; border-color: #aa0000; color: #fcc; }
 .btn-ink { background: #222; border-color: #888; color: #ccc; } .btn-convert { background: #005555; border-color: #00aaaa; color: #cff; }
-
 .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
 #char-tooltip { position: absolute; display: none; background: rgba(0,0,0,0.95); border: 1px solid #888; padding: 10px; border-radius: 4px; pointer-events: none; z-index: 9999; min-width: 180px; box-shadow: 0 4px 10px rgba(0,0,0,0.8); }
 .tooltip-title { font-size: 16px; font-weight: bold; border-bottom: 1px solid #444; margin-bottom: 5px; } .tooltip-stat span { color: #4f4; font-weight: bold; }
@@ -39,29 +39,29 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
 .convert-options { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 300px; } .convert-btn { width: 90px; height: 70px; font-size: 16px; }
 #lab-screen { display: none; flex-direction: column; height: 100%; width: 100%; }
 
-/* タブ */
+/* タブ拡大 */
 .tab-container { display: flex; gap: 4px; margin-bottom: 4px; border-bottom: 1px solid #444; padding-bottom: 4px; overflow-x: auto; flex-shrink: 0; }
 .tab-btn { padding: 8px 20px; background: #222; border: 1px solid #444; border-bottom: none; border-radius: 8px 8px 0 0; color: #888; flex-shrink: 0; font-size: 14px; font-weight: bold; }
 .tab-btn.active { background: #444; color: #fff; border-color: #666; }
 
 .lab-content { display: none; flex-direction: column; height: 100%; overflow: hidden; } .lab-content.active { display: flex; }
 
-/* スロット */
+/* スロット周り拡大 */
 .slot-container { display: flex; gap: 4px; justify-content: center; margin-bottom: 4px; min-height: 60px; padding: 4px; background: rgba(0,0,0,0.3); border-radius: 4px; flex-shrink: 0; }
 
-/* 文字タイル */
+/* 文字タイルサイズ調整 */
 .char-tile { width: 100%; aspect-ratio: 1; background: #e0e0e0; color: #000; display: flex; justify-content: center; align-items: center; font-size: 24px; font-weight: bold; border-radius: 2px; cursor: pointer; border: 1px solid #888; position: relative; }
 .char-tile.used { opacity: 0.3; cursor: default; border-color: #555; filter: grayscale(50%); } 
 #synthesis-slots .char-tile { width: 50px; height: 50px; flex-shrink: 0; font-size: 24px; }
 
-/* 分類色 */
+/* 分類ごとの色分け */
 .char-tile[data-type="interval"] { background: #ffaaaa; border-color: #ff5555; } 
 .char-tile[data-type="range"] { background: #aaffaa; border-color: #55ff55; } 
 .char-tile[data-type="speed"] { background: #aaddff; border-color: #55aaff; } 
 .char-tile[data-type="type"] { background: #ffffaa; border-color: #dddd00; } 
 .char-tile[data-type="special"] { background: #ddbbff; border-color: #aa55ff; } 
 
-/* インベントリ */
+/* インベントリ: グリッドサイズ調整 */
 .inventory-grid { 
     display: grid; 
     grid-template-columns: repeat(auto-fill, minmax(50px, 1fr)); 
@@ -105,6 +105,7 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
 .unit-card .lvl { position: absolute; top: 2px; right: 2px; font-size: 10px; color: #0ff; z-index: 1; }
 .reward-grid { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
 .reward-card-small { width: 60px; height: 60px; background: #e0e0e0; color: #000; display: flex; justify-content: center; align-items: center; font-size: 28px; font-weight: bold; border-radius: 8px; border: 2px solid gold; }
+/* ★修正: Z-indexを引き上げ、確実に最前面へ */
 #game-log-container { position: fixed; top: 15%; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 5px; z-index: 20001; pointer-events: none; width: 300px; }
 .game-log-msg { background: rgba(0,0,0,0.85); color: #fff; padding: 8px 20px; border-radius: 20px; border: 1px solid #666; font-size: 16px; animation: fadeOut 2.5s forwards; box-shadow: 0 2px 10px rgba(0,0,0,0.5); font-family: 'Noto Serif JP', serif; }
 @keyframes fadeOut { 0% { opacity: 0; transform: translateY(10px); } 10% { opacity: 1; transform: translateY(0); } 80% { opacity: 1; } 100% { opacity: 0; } }
@@ -112,8 +113,8 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
 /* チュートリアル用 */
 #tutorial-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.7);
-    z-index: 15000; pointer-events: auto;
+    background: rgba(0,0,0,0.7); /* 暗くしてハイライトを目立たせる */
+    z-index: 15000; pointer-events: auto; /* ここでクリックを拾うが、ハイライト要素はこれより上 */
     display: none;
 }
 #tutorial-box {
@@ -121,14 +122,17 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
     padding: 20px; border-radius: 8px; color: #fff; max-width: 80%;
     pointer-events: auto; box-shadow: 0 0 20px rgba(0,234,255,0.5);
     display: flex; flex-direction: column; gap: 10px; text-align: center;
+    /* ★修正: さらに上に5px移動 (15% - 15px) */
     left: 50%; top: calc(15% - 15px); transform: translateX(-50%); 
     transition: top 0.3s ease;
 }
 #tutorial-skip {
     position: absolute; top: 10px; right: 10px; 
+    /* ★修正: Z-indexをさらに上げて、メッセージボックスが上に来ても押せるように */
     z-index: 16000; pointer-events: auto;
     padding: 4px 8px; font-size: 12px;
 }
+/* ★視認性向上のためのハイライト修正: z-indexを上げて明るい発光を追加 */
 .tut-highlight {
     position: relative; z-index: 15001 !important; 
     box-shadow: 0 0 0 4px #00ffff, 0 0 25px #00ffff; 
@@ -137,12 +141,38 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
     border-radius: 4px;
 }
 @keyframes glow { from { box-shadow: 0 0 0 4px #00ffff, 0 0 10px #00ffff; } to { box-shadow: 0 0 0 8px #00ffff, 0 0 25px #00ffff; } }
+
+/* 設定モーダル */
+#settings-modal {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.8); z-index: 14000;
+    display: none; flex-direction: column; justify-content: center; align-items: center;
+}
+.settings-box {
+    background: #222; border: 2px solid #666; padding: 20px; border-radius: 8px; width: 80%; max-width: 300px;
+    display: flex; flex-direction: column; gap: 15px;
+}
 </style>
 </head>
 <body class="layout-lab">
 <div id="tutorial-overlay">
     <button id="tutorial-skip" class="btn btn-ink" onclick="tutorial.skip()">SKIP</button>
     <div id="tutorial-box"><div id="tutorial-msg"></div><button id="tutorial-next" class="btn btn-primary mt-2" onclick="tutorial.nextStep()">OK</button></div>
+</div>
+
+<div id="settings-modal">
+    <div class="settings-box">
+        <div class="text-white font-bold text-center mb-2">設定</div>
+        <div>
+            <div class="text-gray-300 text-sm mb-1">BGM音量</div>
+            <input type="range" min="0" max="1" step="0.1" value="0.3" class="w-full" oninput="sound.setBgmVolume(this.value)">
+        </div>
+        <div>
+            <div class="text-gray-300 text-sm mb-1">SE音量</div>
+            <input type="range" min="0" max="1" step="0.1" value="0.5" class="w-full" oninput="sound.setSeVolume(this.value)">
+        </div>
+        <button class="btn btn-primary w-full mt-2" onclick="document.getElementById('settings-modal').style.display='none'">閉じる</button>
+    </div>
 </div>
 
 <div id="game-container" class="layout-lab">
@@ -190,9 +220,13 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
                     <button class="tab-btn" onclick="app.switchTab('deck')">編成</button>
                     <button class="tab-btn" onclick="app.switchTab('upgrade')">強化</button>
                 </div>
-                <div>
+                <div class="flex items-center gap-2">
                     <span class="text-sm mr-2 text-gray-300">墨汁: <span id="bokuju-display" class="font-bold text-white">0</span></span>
                     <span class="text-sm mr-2 text-yellow-400 font-bold">SP: <span id="sp-display">0</span></span>
+                    
+                    <!-- ★追加: 設定ボタン -->
+                    <button class="btn btn-ink text-lg px-2 py-1" onclick="document.getElementById('settings-modal').style.display='flex'">⚙️</button>
+                    
                     <button id="btn-sortie" class="btn btn-primary px-4 py-2" onclick="app.startBattle()">出撃！</button>
                 </div>
             </div>
@@ -231,16 +265,16 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
 <script>
 // ★追加: 音声ファイルパス設定（ユーザーが自由に置き換え可能）
 const AUDIO_ASSETS = {
-    bgm_battle: "Gang.mp3", // バトル中BGM (URL)
+    bgm_battle: "bgm.mp3", // バトル中BGM (URL)
     bgm_lab: "heisi.mp3",    // ラボ(編成)画面BGM (URL)
-    se_decide: "syamisen.mp3",  // 決定音
-    se_cancel: "click.mp3",  // キャンセル音
-    se_summon: "Hyoshigi03-1.mp3",  // 召喚音
-    se_attack: "attack.mp3",  // 攻撃音
-    se_damage: "",  // 被弾音
-    se_craft: "wataiko.mp3",   // 錬成音
-    se_win: "wafu-success.mp3",     // 勝利音
-    se_lose: "wafu-syakuhachi.mp3"     // 敗北音
+    // se_decide: "",  // 決定音
+    // se_cancel: "",  // キャンセル音
+    // se_summon: "",  // 召喚音
+    // se_attack: "",  // 攻撃音
+    // se_damage: "",  // 被弾音
+    // se_craft: "",   // 錬成音
+    // se_win: "",     // 勝利音
+    // se_lose: ""     // 敗北音
 };
 
 // ★追加: サウンド管理クラス
@@ -248,11 +282,13 @@ class SoundManager {
     constructor() {
         this.bgm = null;
         this.currentBgmKey = null;
+        this.bgmVolume = 0.3;
+        this.seVolume = 0.5;
     }
     playSE(key) {
         if (!AUDIO_ASSETS[key]) return;
         const audio = new Audio(AUDIO_ASSETS[key]);
-        audio.volume = 0.5;
+        audio.volume = this.seVolume;
         audio.play().catch(e=>{});
     }
     playBGM(key) {
@@ -267,9 +303,16 @@ class SoundManager {
         }
         this.bgm = new Audio(AUDIO_ASSETS[key]);
         this.bgm.loop = true;
-        this.bgm.volume = 0.3;
+        this.bgm.volume = this.bgmVolume;
         this.bgm.play().catch(e=>{});
         this.currentBgmKey = key;
+    }
+    setBgmVolume(v) {
+        this.bgmVolume = v;
+        if (this.bgm) this.bgm.volume = v;
+    }
+    setSeVolume(v) {
+        this.seVolume = v;
     }
 }
 const sound = new SoundManager();
@@ -500,7 +543,7 @@ var GameEngine = class {
         c.save(); c.scale(this.sc, this.sc);
         
         c.fillStyle='#444'; this.bgP.forEach(p=>{c.globalAlpha=p.o;c.font=`${p.sz}px serif`;c.fillText(p.c,p.x,p.y);});
-        c.globalAlpha=1; c.fillRect(0,this.gY,this.vw,500); 
+        c.globalAlpha=1; c.fillRect(0,this.gY,this.vw,500); // Ground
 
         if(this.state!=='BATTLE') {
             if(this.state==='LAB'||this.state==='TITLE'){ 
