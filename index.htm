@@ -333,7 +333,7 @@ var T={INT:'interval',RNG:'range',SPD:'speed',ATK:'type',SPC:'special'};
 var KANJI_DB = {
     '高':{type:T.INT,name:'高速',alias:'疾風',cost:50,stats:{cooldown:0.6,damage:0.8},desc:'攻撃速度UP。'},
     '中':{type:T.INT,name:'中速',alias:'凡庸',cost:0,stats:{cooldown:1.0,damage:1.0},desc:'標準性能'},
-    '低':{type:T.INT,name:'低速',alias:'重厚',cost:50,stats:{cooldown:1.5,damage:2.0},desc:'攻撃遅いが威力高。'},
+    '低':{type:T.INT,name:'低速',alias:'重厚',cost:50,stats:{cooldown:1.5,damage:2.0},desc:'攻撃が遅いが威力高。'},
     '溜':{type:T.INT,name:'溜め',alias:'溜撃',cost:100,stats:{cooldown:3.0,damage:4.0},desc:'超火力・超鈍重。'},
     '前':{type:T.RNG,name:'最前',alias:'前衛',cost:0,stats:{range:40,respawn:0.9,hp:1.3},desc:'超近接。耐久1.3倍'},
     '近':{type:T.RNG,name:'近距',alias:'近衛',cost:20,stats:{range:80,hp:1.2},desc:'近距離。耐久1.2倍'},
@@ -355,7 +355,7 @@ var KANJI_DB = {
     '毒':{type:T.ATK,name:'毒撃',alias:'猛毒',cost:100,effect:'poison',desc:'毒継続ダメージ'},
     '炎':{type:T.ATK,name:'炎上',alias:'業火',cost:120,effect:'burn',desc:'炎上大ダメージ'},
     '撃':{type:T.ATK,name:'強撃',alias:'一撃',cost:150,stats:{damage:3.0},effect:'force_single',desc:'攻撃3倍。単体化'},
-    '投':{type:T.ATK,name:'投擲',alias:'投擲',cost:100,effect:'throw',desc:'最遠敵狙い'},
+    '投':{type:T.ATK,name:'投擲',alias:'投擲',cost:100,effect:'throw',desc:'最遠敵を狙う'},
     '周':{type:T.ATK,name:'衝撃',alias:'衝撃',cost:100,stats:{aoe:30,damage:1.3},effect:'shockwave',desc:'衝撃波'},
     '広':{type:T.ATK,name:'全域',alias:'崩壊',cost:200,stats:{hp:0.3,damage:0.3,respawn:3.0,cooldown:10.0,range:9999,aoe:9999},effect:'full_screen',desc:'全画面攻撃。攻撃間隔極大'},
     '遅':{type:T.SPC,name:'鈍足',alias:'呪縛',cost:80,effect:'slow',desc:'3秒間移動半減'},
@@ -388,7 +388,10 @@ var ENEMY_DB = [
     {chars:['力','士'],min:18,s:{hp:600,dmg:50,spd:0.5,rng:50,cd:120,col:'#b84',aoe:60},ef:['shockwave']},
     {chars:['巨','人'],boss:true,min:5,s:{hp:2000,dmg:80,spd:0.3,rng:80,cd:150,col:'#800',kbResist:0.9,scl:2.0}},
     {chars:['大','蛇'],boss:true,min:10,ef:['poison'],s:{hp:1500,dmg:20,spd:0.5,rng:150,cd:60,col:'#0a0',kbResist:0.8,scl:1.8,mt:3}},
-    {chars:['魔','王'],boss:true,min:15,s:{hp:1000,dmg:200,spd:0.2,rng:400,cd:240,col:'#808',kbResist:0.9,scl:1.5,aoe:100}}
+    {chars:['魔','王'],boss:true,min:15,s:{hp:1000,dmg:200,spd:0.2,rng:400,cd:240,col:'#808',kbResist:0.9,scl:1.5,aoe:100}},
+    {chars:['修','羅'],boss:true,min:20,s:{hp:5000,dmg:25,spd:0.15,rng:60,cd:10,col:'#404',kbResist:1.0,scl:2.2}},
+    {chars:['砲','兵'],min:9,s:{hp:60,dmg:80,spd:0.4,rng:450,cd:250,col:'#d40'}}, 
+    {chars:['武','者'],min:10,s:{hp:450,dmg:25,spd:1.2,rng:65,cd:50,col:'#44a'}}
 ];
 var BASE_STATS = {hp:100,damage:10,speed:1.0,range:50,cooldown:60,cost:50,kbLimit:3,respawnTime:180};
 var UPGRADES = {
@@ -988,7 +991,7 @@ var LabSystem = class {
     
     updPre(){
         if(this.sl.length<2){document.getElementById('preview-stats').textContent="2文字以上選択";document.getElementById('bonus-display').textContent="";return;}
-        const r=this.calc(this.sl), s=r.stats, b=["","","【コスト30%OFF】","【ステータス×1.2】","【ステータス×1.4・再出撃+40%】","【ステータス×1.6・再出撃+80%】"];
+        const r=this.calc(this.sl), s=r.stats, b=["","","【コスト15%OFF】","【ステータス×1.2】","【ステータス×1.5・再出撃+40%】","【ステータス×2.0・再出撃+80%】"];
         document.getElementById('preview-stats').textContent=`体力:${Math.floor(s.hp)} 攻撃力:${Math.floor(s.damage)} 射程:${Math.floor(s.range)} 移動速度:${s.speed.toFixed(1)} コスト:${Math.floor(r.cost)} 再出撃時間:${(s.respawnTime/60).toFixed(1)}s`;
         document.getElementById('bonus-display').textContent=b[this.sl.length]||"";
     }
@@ -1016,12 +1019,18 @@ var LabSystem = class {
         });
         if(efs.includes('force_single')){s.aoe=0;s.multiHit=1;s.pierce=false;s.multiTarget=1;}
         if(efs.includes('berserk'))s.range=40;
-        const cn=cs.length, sm=[1,1,1,1.2,1.4,1.6][cn], cm=[1,1,0.7,1.05,1.15,1.25][cn];
-        if(cn>=3)s.respawnTime*=[1,1,1,1.15,1.4,1.8][cn];
+        const cn=cs.length, sm=[1,1,1,1.2,1.5,2.0][cn], cm=[1,1,0.85,1.05,1.15,1.25][cn];
+        // ★修正点1: 再出撃時間倍率を緩和
+        if(cn>=3)s.respawnTime*=[1,1,1,1.1,1.2,1.4][cn];
+        
         s.hp=BASE_STATS.hp*bH*sm; s.damage=BASE_STATS.damage*bD*sm; s.respawnTime=BASE_STATS.respawnTime*bR;
         const pf=Math.sqrt((s.hp/BASE_STATS.hp)*(s.damage/BASE_STATS.damage));
-        let fc=cost*bC*cm*Math.pow(pf, 0.6); if(s.costRate)fc*=s.costRate; s.cost=Math.floor(fc);
-        let fr=s.respawnTime*(Math.max(0.5,1+(pf-1)*0.8)); if(s.respawnRate)fr*=s.respawnRate;
+        
+        // ★修正点2: コスト計算の指数を0.6から0.5に緩和
+        let fc=cost*bC*cm*Math.pow(pf, 0.5); if(s.costRate)fc*=s.costRate; s.cost=Math.floor(fc);
+        
+        // ★修正点3: ステータスによる再出撃時間延長係数を0.8から0.7に緩和
+        let fr=s.respawnTime*(Math.max(0.5,1+(pf-1)*0.7)); if(s.respawnRate)fr*=s.respawnRate;
         s.respawnTime=Math.max(30,Math.floor(fr));
         
         const aliases = cs.map(c => KANJI_DB[c].alias || c);
