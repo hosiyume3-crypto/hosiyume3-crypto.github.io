@@ -265,16 +265,16 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
 <script>
 // ★追加: 音声ファイルパス設定（ユーザーが自由に置き換え可能）
 const AUDIO_ASSETS = {
-    bgm_battle: "bgm.mp3", // バトル中BGM (URL)
+    bgm_battle: "Gang.mp3", // バトル中BGM (URL)
     bgm_lab: "heisi.mp3",    // ラボ(編成)画面BGM (URL)
-    se_decide: "",  // 決定音
-    se_cancel: "",  // キャンセル音
-    se_summon: "",  // 召喚音
-    se_attack: "",  // 攻撃音
+    se_decide: "syamisen.mp3",  // 決定音
+    se_cancel: "taiko.mp3",  // キャンセル音
+    se_summon: "Hyoshigi03-1",  // 召喚音
+    se_attack: "attack.mp3",  // 攻撃音
     se_damage: "",  // 被弾音
-    se_craft: "",   // 錬成音
-    se_win: "",     // 勝利音
-    se_lose: ""     // 敗北音
+    se_craft: "wataiko.mp3",   // 錬成音
+    se_win: "wafu-success.mp3",     // 勝利音
+    se_lose: "wafu-syakuhachi.mp3"     // 敗北音
 };
 
 // ★追加: サウンド管理クラス
@@ -1109,4 +1109,5 @@ console.log("Lab init");lab.renderInv();
 </script>
 </body>
 </html>
+
 
