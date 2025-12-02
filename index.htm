@@ -60,6 +60,8 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
 .char-tile[data-type="speed"] { background: #aaddff; border-color: #55aaff; } 
 .char-tile[data-type="type"] { background: #ffffaa; border-color: #dddd00; } 
 .char-tile[data-type="special"] { background: #ddbbff; border-color: #aa55ff; } 
+/* ★追加: 耐久力カテゴリーの色（銀・鋼鉄色） */
+.char-tile[data-type="durability"] { background: #c0c0c0; border-color: #777777; }
 
 /* インベントリ: グリッドサイズ調整 */
 .inventory-grid { 
@@ -198,6 +200,8 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
             <button class="btn btn-convert convert-btn" onclick="lab.executeConvert('range')">射程</button>
             <button class="btn btn-convert convert-btn" onclick="lab.executeConvert('speed')">移動速度</button>
             <button class="btn btn-convert convert-btn" onclick="lab.executeConvert('type')">攻撃タイプ</button>
+            <!-- ★追加: 耐久力への変換ボタン -->
+            <button class="btn btn-convert convert-btn" onclick="lab.executeConvert('durability')">耐久力</button>
             <button class="btn btn-convert convert-btn" onclick="lab.executeConvert('special')">特殊</button>
             <button class="btn btn-danger convert-btn" onclick="lab.closeConvertModal()">キャンセル</button>
         </div>
@@ -329,11 +333,12 @@ class SoundManager {
 }
 const sound = new SoundManager();
 
-var T={INT:'interval',RNG:'range',SPD:'speed',ATK:'type',SPC:'special'};
+// ★修正: 新カテゴリー DUR を追加
+var T={INT:'interval',RNG:'range',SPD:'speed',ATK:'type',SPC:'special',DUR:'durability'};
 var KANJI_DB = {
     '高':{type:T.INT,name:'高速',alias:'疾風',cost:50,stats:{cooldown:0.6,damage:0.8},desc:'攻撃速度UP。'},
     '中':{type:T.INT,name:'中速',alias:'凡庸',cost:0,stats:{cooldown:1.0,damage:1.0},desc:'標準性能'},
-    '低':{type:T.INT,name:'低速',alias:'重厚',cost:50,stats:{cooldown:1.5,damage:2.0},desc:'攻撃が遅いが威力高。'},
+    '低':{type:T.INT,name:'低速',alias:'重厚',cost:50,stats:{cooldown:1.5,damage:2.0},desc:'攻撃遅いが威力高。'},
     '溜':{type:T.INT,name:'溜め',alias:'溜撃',cost:100,stats:{cooldown:3.0,damage:4.0},desc:'超火力・超鈍重。'},
     '前':{type:T.RNG,name:'最前',alias:'前衛',cost:0,stats:{range:40,respawn:0.9,hp:1.3},desc:'超近接。耐久1.3倍'},
     '近':{type:T.RNG,name:'近距',alias:'近衛',cost:20,stats:{range:80,hp:1.2},desc:'近距離。耐久1.2倍'},
@@ -342,9 +347,11 @@ var KANJI_DB = {
     '超':{type:T.RNG,name:'超長',alias:'彼方',cost:150,stats:{range:500,hp:0.4},desc:'超遠距離。体力激低'},
     '速':{type:T.SPD,name:'高速',alias:'神速',cost:50,stats:{speed:2.5,respawn:0.9},desc:'高速移動。'},
     '普':{type:T.SPD,name:'普通',alias:'歩兵',cost:0,stats:{speed:1.2},desc:'標準速度'},
-    '歩':{type:T.SPD,name:'徒歩',alias:'鈍歩',cost:0,stats:{speed:0.6,hp:1.2},desc:'低速・高耐久'},
+    /* ★修正: DURカテゴリーへ移動 */
+    '歩':{type:T.DUR,name:'徒歩',alias:'鈍歩',cost:0,stats:{speed:0.6,hp:1.2},desc:'低速・高耐久'},
     '飛':{type:T.SPD,name:'飛行',alias:'天空',cost:80,stats:{hp:0.6,isFlying:true,respawn:1.5},desc:'飛行、再出撃遅'},
-    '亀':{type:T.SPD,name:'重甲',alias:'鉄壁',cost:120,stats:{hp:3.5,speed:0.3},desc:'体力激増、超鈍足'},
+    /* ★修正: DURカテゴリーへ移動 */
+    '亀':{type:T.DUR,name:'重甲',alias:'鉄壁',cost:120,stats:{hp:3.5,speed:0.3},desc:'体力激増、超鈍足'},
     '突':{type:T.SPD,name:'突撃',alias:'突貫',cost:60,stats:{speed:2.0},effect:'charge_atk',desc:'高速移動。初撃3倍'},
     '殴':{type:T.ATK,name:'殴打',alias:'剛拳',cost:0,stats:{damage:1.2,cooldown:0.9},desc:'単体物理。攻・速UP'},
     '攻':{type:T.ATK,name:'攻撃',alias:'猛攻',cost:40,stats:{damage:1.5},desc:'攻撃力1.5倍'},
@@ -355,18 +362,21 @@ var KANJI_DB = {
     '毒':{type:T.ATK,name:'毒撃',alias:'猛毒',cost:100,effect:'poison',desc:'毒継続ダメージ'},
     '炎':{type:T.ATK,name:'炎上',alias:'業火',cost:120,effect:'burn',desc:'炎上大ダメージ'},
     '撃':{type:T.ATK,name:'強撃',alias:'一撃',cost:150,stats:{damage:3.0},effect:'force_single',desc:'攻撃3倍。単体化'},
-    '投':{type:T.ATK,name:'投擲',alias:'投擲',cost:100,effect:'throw',desc:'最遠敵を狙う'},
+    '投':{type:T.ATK,name:'投擲',alias:'投擲',cost:100,effect:'throw',desc:'最遠敵を狙い'},
     '周':{type:T.ATK,name:'衝撃',alias:'衝撃',cost:100,stats:{aoe:30,damage:1.3},effect:'shockwave',desc:'衝撃波'},
     '広':{type:T.ATK,name:'全域',alias:'崩壊',cost:200,stats:{hp:0.3,damage:0.3,respawn:3.0,cooldown:10.0,range:9999,aoe:9999},effect:'full_screen',desc:'全画面攻撃。攻撃間隔極大'},
     '遅':{type:T.SPC,name:'鈍足',alias:'呪縛',cost:80,effect:'slow',desc:'3秒間移動半減'},
-    '防':{type:T.SPC,name:'防壁',alias:'城壁',cost:100,stats:{hp:2.0,kbResist:1.0},desc:'KB無効。'},
-    '盾':{type:T.SPC,name:'盾',alias:'守護',cost:80,stats:{hp:2.5,damage:0.5,kbResist:0.5},desc:'KB半減'},
+    /* ★修正: DURカテゴリーへ移動 */
+    '防':{type:T.DUR,name:'防壁',alias:'城壁',cost:100,stats:{hp:2.0,kbResist:1.0},desc:'KB無効。'},
+    '盾':{type:T.DUR,name:'盾',alias:'守護',cost:80,stats:{hp:2.5,damage:0.5,kbResist:0.5},desc:'KB半減'},
     '重':{type:T.SPC,name:'重打',alias:'圧殺',cost:80,stats:{damage:1.2},effect:'heavy_hit',desc:'強く弾き飛ばす'},
     '暴':{type:T.SPC,name:'暴走',alias:'狂乱',cost:150,stats:{hp:1.5,damage:1.5,speed:1.5},effect:'berserk',desc:'全強化、射程最低'},
     '再':{type:T.SPC,name:'根性',alias:'不死',cost:120,stats:{revive:1},desc:'一度だけ復活'},
-    '鋼':{type:T.SPC,name:'鋼体',alias:'鋼鉄',cost:80,stats:{hp:1.8,kbResist:0.8},desc:'KB80%軽減'},
+    /* ★修正: DURカテゴリーへ移動 */
+    '鋼':{type:T.DUR,name:'鋼体',alias:'鋼鉄',cost:80,stats:{hp:1.8,kbResist:0.8},desc:'KB80%軽減'},
     '軽':{type:T.SPC,name:'軽量',alias:'羽毛',cost:80,stats:{hp:0.7,damage:0.7,costRate:0.6,respawnRate:0.6},desc:'能力低、コスト減'},
-    '耐':{type:T.SPC,name:'耐性',alias:'金剛',cost:50,stats:{damage:0.2,costRate:0.4},desc:'攻撃激減、コスト減'},
+    /* ★修正: DURカテゴリーへ移動 */
+    '耐':{type:T.DUR,name:'耐性',alias:'金剛',cost:50,stats:{damage:0.2,costRate:0.4},desc:'攻撃激減、コスト減'},
     '狙':{type:T.SPC,name:'狙撃',alias:'必中',cost:100,effect:'crit',desc:'20%で2倍撃'},
     '幻':{type:T.SPC,name:'幻影',alias:'朧月',cost:100,effect:'dodge',desc:'20%で回避'},
     '双':{type:T.SPC,name:'双子',alias:'双子',cost:120,stats:{hp:0.5,damage:0.5},effect:'swarm',desc:'能力半減、2体出撃'},
@@ -374,7 +384,13 @@ var KANJI_DB = {
     '死':{type:T.SPC,name:'自爆',alias:'特攻',cost:120,effect:'deathbomb',desc:'死亡時自爆'},
     '弱':{type:T.SPC,name:'弱体',alias:'虚弱',cost:80,effect:'weaken',desc:'攻撃時、敵攻撃力半減'},
     '安':{type:T.SPC,name:'安価',alias:'廉価',cost:20,stats:{costRate:0.7},desc:'コスト30%減'},
-    '早':{type:T.SPC,name:'早出',alias:'迅速',cost:20,stats:{respawnRate:0.7},desc:'再出撃30%短縮'}
+    '早':{type:T.SPC,name:'早出',alias:'迅速',cost:20,stats:{respawnRate:0.7},desc:'再出撃30%短縮'},
+    '巨':{type:T.DUR,name:'巨大',alias:'巨神',cost:150,stats:{hp:2.5,damage:1.5,scale:1.5,kbResist:0.6},desc:'巨大化し能力大幅増'},
+    '硬':{type:T.DUR,name:'硬化',alias:'堅牢',cost:60,stats:{hp:1.4,damage:0.9,kbResist:0.5},desc:'少し硬くなる'},
+    '壁':{type:T.DUR,name:'壁',alias:'絶壁',cost:120,stats:{hp:3.0,speed:0.1,kbResist:1.0},desc:'超耐久、移動ほぼ不可'},
+    // ★追加: 凡庸な耐久文字2種
+    '体':{type:T.DUR,name:'体力',alias:'肉体',cost:30,stats:{hp:1.4},desc:'体力を底上げする。'},
+    '受':{type:T.DUR,name:'受け',alias:'抱擁',cost:20,stats:{hp:1.2,kbResist:0.3},desc:'衝撃を少し和らげる。'}
 };
 var ENEMY_DB = [
     {chars:['雑','魚'],min:1,s:{hp:100,dmg:8,spd:1.5,rng:40,cd:60,col:'#f88'}},
@@ -508,9 +524,11 @@ var GameEngine = class {
     }
     genInv() {
         this.inv = [];
-        const cats = {[T.INT]:[],[T.RNG]:[],[T.SPD]:[]};
+        /* ★修正: DURカテゴリーを追加 */
+        const cats = {[T.INT]:[],[T.RNG]:[],[T.SPD]:[],[T.DUR]:[]};
         Object.keys(KANJI_DB).forEach(k => { const t = KANJI_DB[k].type; if(cats[t]) cats[t].push(k); });
-        [T.INT, T.RNG, T.SPD].forEach(t => { for(let i=0;i<3;i++) this.inv.push(cats[t][Math.floor(Math.random()*cats[t].length)]); });
+        /* ★修正: 耐久力からも3文字ランダムに追加 */
+        [T.INT, T.RNG, T.SPD, T.DUR].forEach(t => { for(let i=0;i<3;i++) this.inv.push(cats[t][Math.floor(Math.random()*cats[t].length)]); });
     }
     cBgP() { return {x:Math.random()*this.vw,y:Math.random()*500,c:Object.keys(KANJI_DB)[Math.floor(Math.random()*Object.keys(KANJI_DB).length)],s:Math.random()*0.5+0.1,sz:Math.random()*20+10,o:Math.random()*0.3}; }
     resize() { 
@@ -991,7 +1009,7 @@ var LabSystem = class {
     
     updPre(){
         if(this.sl.length<2){document.getElementById('preview-stats').textContent="2文字以上選択";document.getElementById('bonus-display').textContent="";return;}
-        const r=this.calc(this.sl), s=r.stats, b=["","","【コスト15%OFF】","【ステータス×1.2】","【ステータス×1.5・再出撃+40%】","【ステータス×2.0・再出撃+80%】"];
+        const r=this.calc(this.sl), s=r.stats, b=["","","【コスト15%OFF】","【ステータス×1.2】","【ステータス×1.5・再出撃+20%】","【ステータス×2.0・再出撃+80%】"];
         document.getElementById('preview-stats').textContent=`体力:${Math.floor(s.hp)} 攻撃力:${Math.floor(s.damage)} 射程:${Math.floor(s.range)} 移動速度:${s.speed.toFixed(1)} コスト:${Math.floor(r.cost)} 再出撃時間:${(s.respawnTime/60).toFixed(1)}s`;
         document.getElementById('bonus-display').textContent=b[this.sl.length]||"";
     }
