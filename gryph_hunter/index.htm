@@ -1,0 +1,1406 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glyph Boss Hunter - Performance Tuned</title>
+    <!-- p5.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <!-- Tailwind CSS for UI Overlay -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; padding: 0; background-color: #050505; color: #eee; overflow: hidden; font-family: 'Courier New', monospace; }
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 0; }
+        
+        /* UI Overlay Styles */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .interactive { pointer-events: auto; }
+        
+        /* --- CYBER CHIP STYLE --- */
+        .glyph-card { 
+            position: relative;
+            transition: all 0.2s; 
+            cursor: pointer; 
+            background: rgba(10, 20, 30, 0.9);
+            border: 1px solid #334155;
+            color: #94a3b8;
+            font-family: 'Courier New', monospace;
+            aspect-ratio: 1 / 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+        }
+        .glyph-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+        .glyph-card:hover { 
+            transform: translateY(-2px); 
+            background: rgba(20, 40, 60, 0.95);
+            box-shadow: 0 0 15px currentColor;
+            z-index: 10;
+        }
+        .glyph-card:active { transform: scale(0.95); }
+        .glyph-card.equipped {
+            background: rgba(20, 30, 10, 0.9);
+            border-color: #fbbf24;
+            box-shadow: 0 0 10px rgba(251, 191, 36, 0.4);
+        }
+        .glyph-card.disabled {
+            opacity: 0.3;
+            pointer-events: none;
+            filter: grayscale(100%);
+        }
+        .equipped-badge {
+            position: absolute;
+            top: 0; right: 0;
+            background: #fbbf24;
+            color: #000;
+            font-size: 8px;
+            font-weight: bold;
+            padding: 2px 6px;
+            clip-path: polygon(0 0, 100% 0, 100% 100%, 10px 100%);
+            z-index: 5;
+        }
+        
+        .glyph-A { color: #ff4d4d; border-color: rgba(255, 77, 77, 0.5); } 
+        .glyph-A:hover { border-color: #ff4d4d; box-shadow: 0 0 10px #ff4d4d; }
+        .glyph-M { color: #4dff88; border-color: rgba(77, 255, 136, 0.5); } 
+        .glyph-M:hover { border-color: #4dff88; box-shadow: 0 0 10px #4dff88; }
+        .glyph-S { color: #d94dff; border-color: rgba(217, 77, 255, 0.5); } 
+        .glyph-S:hover { border-color: #d94dff; box-shadow: 0 0 10px #d94dff; }
+        .glyph-F { color: #ffaa4d; border-color: rgba(255, 170, 77, 0.5); }
+        .glyph-F:hover { border-color: #ffaa4d; box-shadow: 0 0 10px #ffaa4d; }
+
+        /* Slot Bar Styles */
+        .slot-bar-container { margin-bottom: 8px; }
+        .slot-bar-label { font-size: 10px; font-weight: bold; margin-bottom: 2px; padding-left: 4px; display: flex; justify-content: space-between; text-shadow: 0 0 2px currentColor; }
+        .slot-bar { 
+            display: flex; flex-direction: row; gap: 4px; min-height: 50px; padding: 4px; 
+            background: rgba(0, 5, 10, 0.8); border: 1px solid #333; border-left-width: 4px;
+            background-image: radial-gradient(#1e293b 1px, transparent 1px); background-size: 4px 4px;
+            overflow-x: auto; align-items: center;
+        }
+        .bar-A { border-left-color: #f55; }
+        .bar-M { border-left-color: #5f5; }
+        .bar-F { border-left-color: #fa0; }
+        .bar-S { border-left-color: #f0f; }
+
+        #global-tooltip {
+            position: fixed; pointer-events: none; z-index: 9999;
+            background: rgba(5, 5, 10, 0.95); border: 1px solid #0ff;
+            padding: 8px 12px; color: #0ff; font-size: 12px; max-width: 250px;
+            box-shadow: 0 0 10px rgba(0,255,255,0.3); display: none; white-space: pre-line;
+            font-family: 'Courier New', monospace;
+        }
+        #global-tooltip .tt-title { font-weight: bold; border-bottom: 1px dashed #0ff; padding-bottom: 4px; margin-bottom: 4px; display: block;}
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #050505; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 0; border: 1px solid #000; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        #hud { position: absolute; top: 10px; left: 10px; pointer-events: none; text-align: left; }
+        .bar-container { width: 280px; height: 16px; background: #111; margin-bottom: 5px; border: 1px solid #333; position: relative; }
+        .hp-bar { height: 100%; background: #0ff; width: 100%; transition: width 0.2s; box-shadow: 0 0 5px #0ff; }
+        .boss-hp-bar { height: 100%; background: #f05; width: 100%; transition: width 0.2s; box-shadow: 0 0 5px #f05; }
+        .hp-text { position: absolute; top: -2px; left: 4px; font-size: 10px; color: white; text-shadow: 1px 1px 0 #000; font-family: monospace; font-weight: bold; }
+        .dash-pips { display: flex; gap: 4px; margin-top: 4px; }
+        .dash-pip { width: 10px; height: 6px; background: #222; border: 1px solid #444; transform: skewX(-20deg); transition: all 0.2s; }
+        .dash-pip.ready { background: #0ff; border-color: #fff; box-shadow: 0 0 5px #0ff; }
+
+        .screen { display: none; width: 85%; max-width: 1100px; max-height: 90vh; overflow-y: auto; padding: 20px; background: rgba(5, 5, 10, 0.95); border: 1px solid #333; box-shadow: 0 0 30px rgba(0,0,0,0.8); }
+        .screen.active { display: flex; flex-direction: column; }
+        .neon-box { border: 1px solid #0ff; box-shadow: 0 0 10px rgba(0, 255, 255, 0.1), inset 0 0 20px rgba(0, 255, 255, 0.05); }
+    </style>
+</head>
+<body>
+
+    <div id="global-tooltip"></div>
+
+    <div id="hud" style="display:none;">
+        <div class="text-xs text-cyan-600 font-bold tracking-widest">PLAYER STATUS</div>
+        <div class="bar-container">
+            <div id="player-hp" class="hp-bar"></div>
+            <div id="player-hp-text" class="hp-text">100/100</div>
+        </div>
+        <div class="mt-1">
+             <div class="text-xs text-cyan-400 mb-1 tracking-widest">BOOSTER</div>
+             <div id="dash-container" class="dash-pips"></div>
+        </div>
+        <div class="text-xs text-red-600 mt-4 font-bold tracking-widest">TARGET STATUS</div>
+        <div class="bar-container">
+            <div id="boss-hp" class="boss-hp-bar"></div>
+            <div id="boss-hp-text" class="hp-text">100%</div>
+        </div>
+        <div class="mt-2 text-sm text-cyan-400 font-mono" id="wave-info">LAYER: 01</div>
+        <div id="boss-status" class="mt-1 flex flex-col gap-1 font-mono"></div>
+    </div>
+
+    <div id="ui-layer">
+        
+        <!-- TITLE SCREEN -->
+        <div id="screen-title" class="screen active interactive neon-box text-center" style="background: rgba(0,0,0,0.8);">
+            <h1 class="text-7xl font-bold mb-4 text-cyan-400 tracking-tighter" style="text-shadow: 0 0 20px cyan;">GLYPH<br>HUNTER</h1>
+            <p class="mb-8 text-gray-400 font-mono text-sm tracking-widest">SYSTEM: INITIALIZING...</p>
+            <div class="text-left bg-black bg-opacity-80 p-6 border border-cyan-900 inline-block mx-auto font-mono text-xs text-cyan-100">
+                <p class="mb-2 text-cyan-400">>> MISSION OBJECTIVE</p>
+                <p>1. [ARCHITECT] 手持ちの「チップ」を組み合わせてターゲットを設計</p>
+                <p>2. [ELIMINATE] ターゲットを破壊し、データを解析(SP獲得)</p>
+                <p>3. [UPGRADE]  新たなチップを入手し、より強力な個体を生成</p>
+                <p class="mt-4 text-gray-500">>> CONTROLS: WASD=Move / SPACE=Boost / CLICK=Fire</p>
+            </div>
+            <br><br>
+            <button onclick="startGame()" class="mt-4 px-10 py-4 bg-cyan-900 hover:bg-cyan-700 text-white font-bold tracking-widest border border-cyan-400 shadow-[0_0_20px_rgba(0,255,255,0.3)] transition-all hover:shadow-[0_0_40px_rgba(0,255,255,0.6)]">
+                LOGIN
+            </button>
+        </div>
+
+        <!-- BOSS DESIGN SCREEN -->
+        <div id="screen-design" class="screen interactive neon-box">
+            <h2 class="text-2xl font-bold mb-2 text-cyan-400 border-b border-cyan-900 pb-2 flex justify-between font-mono">
+                <span>// BOSS_ARCHITECT</span>
+                <span class="text-sm text-gray-400 self-end">SP: <span id="current-sp-display" class="text-yellow-400 font-bold">0</span></span>
+            </h2>
+            
+            <div class="flex gap-4 h-full">
+                <!-- Inventory -->
+                <div class="w-1/3 flex flex-col">
+                    <h3 class="text-xs text-cyan-600 mb-2 font-bold tracking-widest">>> CHIP STORAGE</h3>
+                    <div id="inventory-grid" class="grid grid-cols-4 gap-2 overflow-y-auto pr-2 content-start pt-2 pl-2 bg-black bg-opacity-40 border border-gray-800" style="max-height: 550px;"></div>
+                </div>
+
+                <!-- Boss Construction -->
+                <div class="w-2/3 flex flex-col border-l border-gray-800 pl-4">
+                    <h3 class="text-xs text-cyan-600 mb-2 font-bold tracking-widest">>> COMPONENT SLOTS</h3>
+                    <div class="flex-grow overflow-y-auto pr-2 mb-2">
+                        <div class="slot-bar-container"><div class="slot-bar-label text-red-400"><span>ATTACK [A]</span><span class="text-[9px] text-gray-500">OFFENSIVE</span></div><div id="slots-a" class="slot-bar bar-A"></div></div>
+                        <div class="slot-bar-container"><div class="slot-bar-label text-green-400"><span>MOVE [M]</span><span class="text-[9px] text-gray-500">MOBILITY</span></div><div id="slots-m" class="slot-bar bar-M"></div></div>
+                        <div class="slot-bar-container"><div class="slot-bar-label text-orange-400"><span>FIELD [F]</span><span class="text-[9px] text-gray-500">ENVIRON</span></div><div id="slots-f" class="slot-bar bar-F"></div></div>
+                        <div class="slot-bar-container"><div class="slot-bar-label text-purple-400"><span>SPECIAL [S]</span><span class="text-[9px] text-gray-500">MODULE</span></div><div id="slots-s" class="slot-bar bar-S"></div></div>
+                    </div>
+
+                    <!-- Stats -->
+                    <div class="mt-auto p-3 border-t border-cyan-900 bg-black bg-opacity-50">
+                        <div class="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-xs">
+                            <div class="flex justify-between border-b border-gray-900 pb-1"><span class="text-gray-500">MODULES:</span><span id="stat-count" class="font-bold text-white">0</span></div>
+                            <div class="flex justify-between border-b border-gray-900 pb-1"><span class="text-gray-500">HP MULT:</span><span id="stat-hp" class="text-green-400">x1.0</span></div>
+                            <div class="flex justify-between border-b border-gray-900 pb-1"><span class="text-gray-500">ATK MULT:</span><span id="stat-atk" class="text-red-400">x1.0</span></div>
+                            <div class="flex justify-between border-b border-gray-900 pb-1"><span class="text-gray-500">CLOCK UP:</span><span id="stat-cd" class="text-blue-400">0%</span></div>
+                        </div>
+                        <div class="flex justify-between text-sm mt-2 pt-2 border-t border-gray-800">
+                            <span class="text-gray-400">REWARD PREDICTION:</span>
+                            <span id="stat-drop" class="text-yellow-400 font-bold text-lg font-mono">0 SP</span>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2 mt-4">
+                        <button onclick="openSkillTree()" class="flex-1 px-4 py-3 bg-gray-900 hover:bg-gray-800 text-gray-300 font-bold text-xs border border-gray-700 tracking-wider">SYSTEM UPGRADE</button>
+                        <button onclick="confirmBoss()" id="btn-deploy" class="flex-[2] px-6 py-3 bg-red-900 hover:bg-red-700 text-white font-bold transition opacity-50 cursor-not-allowed border border-red-500 tracking-widest text-sm" disabled>DEPLOY TARGET</button>
+                    </div>
+                    <p id="design-error" class="text-xs text-red-500 mt-2 text-center h-4 font-mono"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- REWARD SCREEN -->
+        <div id="screen-loot" class="screen interactive neon-box">
+            <h2 class="text-2xl font-bold mb-4 text-green-400 text-center font-mono">>> UNKNOWN DATA DETECTED</h2>
+            <p id="loot-instruction" class="text-center text-gray-400 mb-6 text-xs font-mono">解析されたデータを選択して取得してください。</p>
+            <div class="bg-black bg-opacity-50 p-6 border border-gray-800 mb-6">
+                <div id="loot-display" class="grid grid-cols-4 gap-6 justify-center"></div>
+            </div>
+             <p id="loot-message" class="text-center text-gray-500 text-xs mb-4 font-mono"></p>
+        </div>
+
+        <!-- SKILL SCREEN -->
+        <div id="screen-skill" class="screen interactive neon-box">
+            <div class="flex justify-between items-center mb-4 border-b border-cyan-900 pb-2">
+                <h2 class="text-2xl font-bold text-yellow-400 font-mono">>> SYSTEM UPGRADE</h2>
+                <div class="text-xl font-mono">SP: <span id="player-sp-skill" class="text-cyan-400 font-bold">0</span></div>
+            </div>
+            <div class="grid grid-cols-2 gap-4 mb-8" id="skill-tree-grid"></div>
+            <button onclick="backToDesign()" class="mx-auto block px-8 py-3 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white font-bold font-mono">BACK</button>
+        </div>
+
+        <!-- GAME OVER SCREEN -->
+        <div id="screen-gameover" class="screen interactive neon-box text-center">
+            <h2 class="text-5xl font-bold mb-2 text-red-600 tracking-tighter" style="text-shadow: 0 0 10px red;">CRITICAL FAILURE</h2>
+            <p class="text-xl mb-6 text-red-400 font-mono">SIGNAL LOST...</p>
+            <p id="final-score" class="mb-8 text-cyan-400 font-mono text-2xl"></p>
+            <button onclick="retryGame()" class="px-8 py-3 bg-white text-black font-bold hover:bg-gray-200 tracking-widest font-mono">RETURN TO BASE</button>
+        </div>
+    </div>
+
+<script>
+/**
+ * GLYPH BOSS HUNTER - PERFORMANCE & TUNED
+ */
+
+// --- CONFIG & CONSTANTS ---
+const GAME_WIDTH = window.innerWidth;
+const GAME_HEIGHT = window.innerHeight;
+const MAX_PARTICLES = 80; // PERFORMANCE CAP
+const COLORS = {
+    bg: '#050508',
+    player: '#00ffff',
+    playerDash: '#008888',
+    boss: '#ff0055',
+    bossCore: '#ff0055',
+    bossRage: '#ff0000',
+    bulletPlayer: '#00ffff',
+    bulletBoss: '#ff0055',
+    bulletHoming: '#aa00ff',
+    bulletFreeze: '#00ccff', 
+    bulletSplit: '#ffaa00', 
+    bulletRicochet: '#ff8800',
+    field: '#ffaa00',
+    obstacle: '#888',
+    suction: '#a0a',
+    blackhole: '#303'
+};
+
+// --- GAME STATE ---
+let gameState = 'TITLE'; 
+let gameFloor = 1; 
+let victoryTimer = 0;
+let shakeAmount = 0;
+
+// --- ENTITIES ---
+let player;
+let boss;
+let projectiles = [];
+let particles = [];
+let fields = []; 
+let obstacles = []; 
+
+// --- DATA ---
+let ownedGlyphIds = []; 
+let bossConfig = []; 
+let currentSP = 0;
+let gainedSP = 0;
+let lootPicksRemaining = 1; // Reward logic
+
+let playerStats = {
+    maxHp: 100,
+    hp: 100,
+    speed: 4,
+    fireRate: 15, 
+    damage: 10,
+    bulletSpeed: 8,
+    weaponType: 'NORMAL',
+    weaponName: '初期ハンドガン',
+    dashMaxCharges: 1, 
+    dashCooldownMax: 180,
+    dashInvincibleFrame: 15
+};
+
+let bossSettings = {
+    hpMult: 1.0,
+    atkMult: 1.0
+};
+
+// Skill Tree Data
+const SKILL_TREE = [
+    { id: 'HP', name: 'CORE_INTEGRITY', desc: '最大HP+20', cost: 1, maxLvl: 20, currentLvl: 0, apply: (lvl) => playerStats.maxHp = 100 + (lvl * 20) },
+    { id: 'DASH_CNT', name: 'BOOSTER_CAPACITY', desc: '回避回数+1', cost: 5, maxLvl: 3, currentLvl: 0, apply: (lvl) => playerStats.dashMaxCharges = 1 + lvl },
+    { id: 'SPD', name: 'THRUSTER_OUTPUT', desc: '移動速度+0.3', cost: 2, maxLvl: 10, currentLvl: 0, apply: (lvl) => playerStats.speed = 4 + (lvl * 0.3) },
+    { id: 'INV_TIME', name: 'PHANTOM_CLOAK', desc: '回避無敵時間+5F', cost: 3, maxLvl: 5, currentLvl: 0, apply: (lvl) => playerStats.dashInvincibleFrame = 15 + (lvl * 5) }, 
+    { id: 'DASH_CD', name: 'BOOSTER_RECHARGE', desc: '回避CT短縮', cost: 3, maxLvl: 5, currentLvl: 0, apply: (lvl) => playerStats.dashCooldownMax = 180 - (lvl * 12) }
+];
+
+// --- GLYPH DATABASE ---
+const GLYPH_DB = [
+    // TIER 1
+    { id: 'a_bullet', type: 'A', tier: 1, name: 'SINGLE_SHOT', desc: '標準的な弾をボスの正面に発射する。', weight: 1.0 },
+    { id: 'a_spread', type: 'A', tier: 1, name: 'TRI_SPREAD', desc: '扇状に3発の弾を拡散発射する。', weight: 1.2 },
+    { id: 'a_5way',   type: 'A', tier: 1, name: 'PENTA_SPREAD', desc: '扇状に5発の弾を拡散発射する。', weight: 1.3 }, 
+    { id: 'm_chase',  type: 'M', tier: 1, name: 'CHASE_AI', desc: 'プレイヤーの位置へゆっくりと近づく。', weight: 1.0 },
+    // m_random REMOVED
+    { id: 'f_bomb',   type: 'F', tier: 1, name: 'BOMB_RAID', desc: 'プレイヤーの周囲に円形爆撃を行う。', weight: 1.5 },
+    { id: 's_fast',   type: 'S', tier: 1, name: 'VELOCITY_UP', desc: 'ボスの弾速が1.3倍になる。', weight: 1.5 }, 
+    { id: 's_tough',  type: 'S', tier: 1, name: 'ARMOR_PLATE', desc: 'ボスのHPが増加する。', weight: 1.5 }, 
+    
+    // TIER 2
+    { id: 'a_circle',   type: 'A', tier: 2, name: 'OMNI_BURST', desc: '周囲360度へ弾をばら撒く。', weight: 1.5 },
+    { id: 'a_sniper',   type: 'A', tier: 2, name: 'RAILGUN', desc: '弾速の速い、高威力の一撃を放つ。', weight: 1.5 },
+    { id: 'a_homing',   type: 'A', tier: 2, name: 'MISSILE', desc: '低速だが執拗にプレイヤーを追う弾。', weight: 1.5 },
+    { id: 'a_freeze',   type: 'A', tier: 2, name: 'DELAY_BIT', desc: '発射後一時停止し、一斉に動き出す。', weight: 1.5 }, 
+    { id: 'a_wave',     type: 'A', tier: 2, name: 'SONIC_WAVE', desc: '広範囲に広がるダメージ判定の波。', weight: 1.8 },
+    { id: 'a_cutter',   type: 'A', tier: 2, name: 'SAW_DISC', desc: '4方向へ射出し、円を描いてボスへ戻る刃を放つ。', weight: 1.8 },
+    { id: 'a_cluster',  type: 'A', tier: 2, name: 'CLUSTER', desc: '着弾後に分裂して破片を撒き散らす。', weight: 1.8 }, 
+    { id: 'a_orbit_shot',type: 'A',tier: 2, name: 'SATELLITE', desc: '発射位置の周囲を回転しながら広がる。', weight: 1.5 }, 
+    { id: 'a_charge_shot',type: 'A',tier: 2, name: 'PLASMA_CANNON', desc: '低速で発射され、徐々に加速・巨大化する。', weight: 1.8 }, 
+    { id: 'a_mine_scatter',type: 'A',tier: 2, name: 'PROX_MINE', desc: '周囲に機雷を撒き、時間差で一斉爆発させる。', weight: 1.8 }, 
+    { id: 'm_dash',     type: 'M', tier: 2, name: 'ASSAULT_DASH', desc: '高速でプレイヤー目掛けて体当たりする。', weight: 1.3 },
+    { id: 'm_vanish_drop', type: 'M', tier: 2, name: 'VANISH_DROP', desc: '姿を消し上空からプレイヤーを強襲する。', weight: 1.5 }, 
+    { id: 'f_suction',  type: 'F', tier: 2, name: 'GRAVITY_WELL', desc: 'プレイヤーを引き寄せる重力場を生成。', weight: 1.5 }, 
+    { id: 'f_rain',     type: 'F', tier: 3, name: 'CARPET_BOMB', desc: '複数の爆撃ポイントを同時に生成する。', weight: 2.5 }, 
+    { id: 'f_geo_bomb', type: 'F', tier: 3, name: 'GEO_TRAP', desc: '十字やX字に爆発する機雷を設置する。', weight: 2.5 }, 
+    { id: 'f_line_bomb', type: 'F', tier: 2, name: 'LINE_RAID', desc: '縦と横の両方を焼き払う爆撃を行う。', weight: 1.8 },
+    { id: 's_rage',     type: 'S', tier: 2, name: 'OVERDRIVE', desc: 'HP50%以下で行動速度と攻撃力が上昇。', weight: 2.0 }, 
+    { id: 's_double',   type: 'S', tier: 2, name: 'PARALLEL_PROC', desc: '30%の確率で同じ攻撃を連続発動する。', weight: 2.0 }, 
+    { id: 's_power',    type: 'S', tier: 2, name: 'AMP_FORCE', desc: 'ボスの攻撃力が上昇する。', weight: 2.0 }, 
+    { id: 's_regen',    type: 'S', tier: 2, name: 'AUTO_REPAIR', desc: 'ボスのHPが徐々に自動回復する。', weight: 2.5 }, 
+    { id: 's_thorn',    type: 'S', tier: 2, name: 'SPIKE_ARMOR', desc: '接触ダメージ強化＋ノックバック。', weight: 2.5 }, 
+
+    // TIER 3
+    { id: 'a_laser',    type: 'A', tier: 3, name: 'HYPER_BEAM', desc: '回避困難な極太ビームを照射する。', weight: 2.5 },
+    { id: 'a_spiral',   type: 'A', tier: 3, name: 'HELIX_STORM', desc: '回転しながら大量の弾を撒き散らす。', weight: 2.0 },
+    { id: 'a_split',    type: 'A', tier: 3, name: 'FRACTAL_SHOT', desc: '着弾または停止後、6方向へ再分裂する。', weight: 2.0 }, 
+    { id: 'a_nuke',     type: 'A', tier: 3, name: 'GIGA_BLAST', desc: '壁で2回反射する破壊的な巨大弾を放つ。', weight: 2.0 },
+    { id: 'a_implode',  type: 'A', tier: 3, name: 'NOVA_CYCLE', desc: '画面外から弾が出現し中心へ収束。プレイヤーも吸引する。', weight: 2.0 }, 
+    { id: 'm_warp',     type: 'M', tier: 3, name: 'QUANTUM_JUMP', desc: '一瞬で別の場所へワープする。', weight: 2.0 },
+    { id: 'm_step',     type: 'M', tier: 3, name: 'PHANTOM_STEP', desc: '短距離瞬間移動を連続で行い撹乱する。', weight: 2.5 }, 
+    { id: 'm_stalker',  type: 'M', tier: 3, name: 'SHADOW_STEP', desc: '一瞬でプレイヤーの背後に回り込む。', weight: 2.5 }, 
+    { id: 'm_shadow_rush',type: 'M',tier: 3, name: 'SHADOW_RUSH', desc: '周囲を高速旋回し撹乱した後、停止する。', weight: 2.5 }, 
+    { id: 's_barrier',  type: 'S', tier: 3, name: 'I_FIELD', desc: '一定周期で弾を無効化するバリアを展開。', weight: 3.0 },
+    { id: 's_funnel',   type: 'S', tier: 3, name: 'DRONE_UNIT', desc: '自動攻撃を行う破壊可能なビットを展開する。', weight: 3.0 } 
+];
+
+function getGlyphById(id) {
+    return {...GLYPH_DB.find(g => g.id === id)}; 
+}
+
+// --- TOOLTIP LOGIC ---
+function showTooltip(text, x, y, title, type) {
+    let tt = document.getElementById('global-tooltip');
+    tt.innerHTML = `<span class="tt-title">${title} <span class="tt-type">[${type}]</span></span>${text}`;
+    tt.style.display = 'block';
+    updateTooltipPos(x, y);
+}
+function hideTooltip() {
+    let tt = document.getElementById('global-tooltip');
+    tt.style.display = 'none';
+}
+function updateTooltipPos(x, y) {
+    let tt = document.getElementById('global-tooltip');
+    if (tt.style.display === 'none') return;
+    let offsetX = 15; let offsetY = 15;
+    if (x + 250 > window.innerWidth) offsetX = -260;
+    if (y + 100 > window.innerHeight) offsetY = -100;
+    tt.style.left = (x + offsetX) + 'px'; tt.style.top = (y + offsetY) + 'px';
+}
+
+// --- P5.JS SETUP ---
+function setup() {
+    createCanvas(windowWidth, windowHeight);
+    noCursor();
+    frameRate(60);
+    ownedGlyphIds = ['a_bullet', 'm_chase', 'f_bomb', 'a_spread'];
+    bossConfig = [getGlyphById('a_bullet'), getGlyphById('m_chase')];
+    updateDesignUI();
+}
+
+function windowResized() {
+    resizeCanvas(windowWidth, windowHeight);
+}
+
+// --- MAIN LOOP ---
+function draw() {
+    background(5, 5, 8); 
+    drawGridAnimation();
+    if (shakeAmount > 0) {
+        translate(random(-shakeAmount, shakeAmount), random(-shakeAmount, shakeAmount));
+        shakeAmount *= 0.9;
+    }
+
+    updateParticles();
+    drawParticles();
+
+    if (gameState === 'BATTLE' || gameState === 'VICTORY_ANIM') {
+        if (gameState === 'BATTLE') {
+            updatePlayer();
+            updateBoss();
+            updateProjectiles();
+            updateFields();
+            checkCollisions();
+        } else if (gameState === 'VICTORY_ANIM') {
+            if (frameCount % 10 === 0) {
+                createExplosion(boss.x + random(-50, 50), boss.y + random(-50, 50), '#fff', 5);
+                shakeAmount = 10;
+            }
+            victoryTimer--;
+            if (victoryTimer <= 0) {
+                setupLootPhase(); 
+            }
+        }
+        drawFields();
+        drawBossTelegraph();
+        drawBoss();
+        drawPlayer();
+        drawProjectiles();
+        drawHealthBars();
+        updateHUD();
+    } 
+    drawCursor();
+}
+
+// --- VISUALS ---
+function drawGridAnimation() {
+    stroke(15, 25, 40); strokeWeight(1);
+    let offset = (frameCount * 0.5) % 100; // Slower grid
+    for(let x=0; x<width; x+=150) line(x, 0, x, height); // Wider grid
+    for(let y=offset; y<height; y+=100) line(0, y, width, y);
+}
+function drawCursor() {
+    push(); translate(mouseX, mouseY); 
+    noFill(); stroke(COLORS.player); strokeWeight(2);
+    ellipse(0,0, 20, 20);
+    line(-15, 0, -5, 0); line(5, 0, 15, 0);
+    line(0, -15, 0, -5); line(0, 5, 0, 15);
+    pop();
+}
+function drawHealthBars() {
+    if (player) {
+        let pct = playerStats.hp / playerStats.maxHp; let w = 40; let h = 4;
+        noStroke(); fill(20); rect(player.x - w/2, player.y + 25, w, h); 
+        fill(0, 255, 255); rect(player.x - w/2, player.y + 25, w * Math.max(0, pct), h);
+    }
+}
+function drawBossTelegraph() {
+    if (!boss || boss.hp <= 0) return;
+    
+    if (boss.state === 'VANISH_WAIT') {
+        let t = boss.timer / 60; 
+        noFill(); stroke(255, 0, 0, 150); strokeWeight(2);
+        let r = 20 + t * 100;
+        ellipse(boss.dropTargetX, player.y, r, r);
+        drawingContext.setLineDash([5, 5]); // Dashed line
+        line(boss.dropTargetX, 0, boss.dropTargetX, height);
+        drawingContext.setLineDash([]);
+    }
+    else if (boss.state === 'VANISH_LOCK') {
+        // Solid warning line
+        stroke(255, 0, 0); strokeWeight(4);
+        line(boss.dropTargetX, 0, boss.dropTargetX, height);
+        noFill();
+        // Flashing circle
+        if (Math.floor(frameCount / 4) % 2 === 0) stroke(255, 255, 0);
+        else stroke(255, 0, 0);
+        ellipse(boss.dropTargetX, player.y, 40, 40);
+    }
+
+    if (boss.state === 'CHARGE' && boss.currentAttack) {
+         let atk = boss.currentAttack.id; let t = (frameCount % 20) / 20; 
+         push(); translate(boss.x, boss.y); strokeWeight(2);
+         let alpha = map(sin(frameCount * 0.5), -1, 1, 50, 200); stroke(255, 50, 50, alpha); noFill();
+         let angle = atan2(player.y - boss.y, player.x - boss.x);
+         if (atk === 'a_laser') { rotate(angle); fill(255, 0, 0, 50); rect(0, -10, 1000, 20); } 
+         else if (atk === 'a_sniper' || atk === 'a_nuke' || atk === 'a_charge_shot') { rotate(angle); stroke(255, 0, 0, alpha); line(0, 0, 1000, 0); if(atk === 'a_nuke') ellipse(0,0,50,50); } 
+         else if (['a_circle','a_spiral','a_freeze','a_homing','a_wave','a_split','a_cutter','a_cluster','a_orbit_shot','a_mine_scatter','a_implode'].includes(atk)) { ellipse(0, 0, boss.size * 3 + (t * 50)); } 
+         else if (atk === 'a_spread') { rotate(angle); line(0, 0, 200, -60); line(0, 0, 200, 60); arc(0,0, 200, 200, -0.3, 0.3); } 
+         else if (atk === 'a_5way') { rotate(angle); for(let a of [-0.4,-0.2,0,0.2,0.4]) line(0,0,200*cos(a),200*sin(a)); } 
+         else if (atk === 'a_cross') { line(-100, 0, 100, 0); line(0, -100, 0, 100); } 
+         else { rotate(angle); line(0,0, 100, 0); }
+         pop();
+    }
+}
+
+function createParticle(x, y, color, type, size=5) {
+    if(particles.length > MAX_PARTICLES) particles.shift(); // Cap particles
+    particles.push({x: x, y: y, color: color, life: 1.0, type: type, vx: random(-3, 3), vy: random(-3, 3), size: size});
+}
+function createExplosion(x, y, color, count=8) {
+    for(let i=0; i<count; i++) createParticle(x, y, color, 'boom', random(5, 10));
+}
+function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i]; p.x += p.vx; p.y += p.vy; p.life -= 0.05; if (p.life <= 0) particles.splice(i, 1);
+    }
+}
+function drawParticles() {
+    noStroke(); for (let p of particles) { let c = color(p.color); c.setAlpha(p.life * 255); fill(c); if (p.type === 'boom') { rectMode(CENTER); rect(p.x, p.y, p.size * p.life, p.size * p.life); } else ellipse(p.x, p.y, p.size, p.size); }
+}
+
+// --- PLAYER LOGIC ---
+function initPlayer() {
+    player = { x: width / 2, y: height - 200, hp: playerStats.maxHp, cooldown: 0, dashCharges: playerStats.dashMaxCharges, dashRechargeTimer: 0, isDashing: false, dashTime: 0, invincible: false, shakeTimer: 0 };
+    playerStats.hp = playerStats.maxHp; updateDashUI();
+}
+function updatePlayer() {
+    if (keyIsDown(32) && player.dashCharges > 0 && !player.isDashing) { 
+        player.isDashing = true; player.dashTime = playerStats.dashInvincibleFrame; player.dashCharges--;
+        if (player.dashRechargeTimer <= 0) player.dashRechargeTimer = playerStats.dashCooldownMax;
+        player.invincible = true; createExplosion(player.x, player.y, COLORS.playerDash, 10); updateDashUI();
+    }
+    if (player.dashCharges < playerStats.dashMaxCharges) {
+        player.dashRechargeTimer--;
+        if (player.dashRechargeTimer <= 0) { player.dashCharges++; updateDashUI(); if (player.dashCharges < playerStats.dashMaxCharges) player.dashRechargeTimer = playerStats.dashCooldownMax; }
+    }
+    let dx = 0; let dy = 0; if (keyIsDown(87)) dy -= 1; if (keyIsDown(83)) dy += 1; if (keyIsDown(65)) dx -= 1; if (keyIsDown(68)) dx += 1; 
+    if (dx !== 0 || dy !== 0) { let len = sqrt(dx*dx + dy*dy); dx /= len; dy /= len; }
+    let speed = playerStats.speed * (player.isDashing ? 2.5 : 1.0);
+    let nextX = player.x + dx * speed; let nextY = player.y + dy * speed;
+    player.x = constrain(nextX, 20, width-20); player.y = constrain(nextY, 20, height-20);
+    if (player.isDashing) { player.dashTime--; createParticle(player.x, player.y, COLORS.playerDash, 'trail', 3); if(player.dashTime <= 0) { player.isDashing = false; player.invincible = false; } }
+    if (mouseIsPressed && player.cooldown <= 0 && !player.isDashing) { firePlayerWeapon(); player.cooldown = playerStats.fireRate; }
+    if (player.cooldown > 0) player.cooldown--;
+}
+function updateDashUI() {
+    let container = document.getElementById('dash-container'); if (!container) return; container.innerHTML = '';
+    for(let i=0; i<playerStats.dashMaxCharges; i++) { let div = document.createElement('div'); div.className = 'dash-pip' + (i < player.dashCharges ? ' ready' : ''); container.appendChild(div); }
+}
+function firePlayerWeapon() {
+    let angle = atan2(mouseY - player.y, mouseX - player.x);
+    let spd = playerStats.bulletSpeed; let dmg = playerStats.damage;
+    createProjectile(player.x, player.y, cos(angle)*spd, sin(angle)*spd, 'PLAYER', 5, dmg);
+}
+function drawPlayer() {
+    push(); 
+    let drawX = player.x; let drawY = player.y;
+    if (player.shakeTimer > 0) { drawX += random(-5, 5); drawY += random(-5, 5); player.shakeTimer--; }
+    translate(drawX, drawY);
+    if(player.invincible && frameCount % 4 < 2) { stroke(0, 255, 255); noFill(); } else { fill(0); stroke(COLORS.player); }
+    strokeWeight(2); 
+    push(); rotate(atan2(mouseY - player.y, mouseX - player.x) + PI/2);
+    beginShape(); vertex(0, -15); vertex(-10, 10); vertex(0, 5); vertex(10, 10); endShape(CLOSE);
+    pop(); pop();
+}
+
+// --- BOSS LOGIC ---
+function initBoss() {
+    let glyphCount = bossConfig.length;
+    let hpMult = 1.0 + (glyphCount * 0.15); let cdReduction = constrain(glyphCount * 0.05, 0, 0.5); 
+    
+    // CHANGE: Removed attack scaling based on chip count
+    let damageMult = 1.0; 
+    
+    let attacks = bossConfig.filter(g => g.type === 'A'); let moves = bossConfig.filter(g => g.type === 'M');
+    let fields = bossConfig.filter(g => g.type === 'F'); let specials = bossConfig.filter(g => g.type === 'S');
+    if (attacks.length === 0) attacks.push(getGlyphById('a_bullet')); if (moves.length === 0) moves.push(getGlyphById('m_chase'));
+    let bulletSpeedMult = specials.some(g => g.id === 's_fast') ? 1.3 : 1.0;
+    let hasRage = bossConfig.some(g => g.id === 's_rage'); let hasDouble = bossConfig.some(g => g.id === 's_double');
+    
+    let hasRegen = specials.some(g => g.id === 's_regen');
+    let hasBarrier = specials.some(g => g.id === 's_barrier');
+    let hasFunnel = specials.some(g => g.id === 's_funnel');
+    let hasThorn = specials.some(g => g.id === 's_thorn');
+
+    boss = {
+        x: width / 2, y: 100, maxHp: 200 * hpMult * gameFloor, hp: 200 * hpMult * gameFloor, size: 40 + (glyphCount * 2),
+        state: 'IDLE', timer: 60, glyphParts: { attacks, moves, fields, specials },
+        cdMult: 1.0 - cdReduction, dmgMult: damageMult, bulletSpeedMult: bulletSpeedMult, color: COLORS.boss,
+        hasRage: hasRage, hasDouble: hasDouble, isRaged: false, drawRot: 0,
+        hasRegen: hasRegen, hasBarrier: hasBarrier, barrierActive: false, barrierTimer: 0,
+        hasFunnel: hasFunnel, funnels: [], hasThorn: hasThorn, targetX: 0, targetY: 0,
+        dropTargetX: 0, vy: 0 // New props for VANISH_DROP
+    };
+    if(specials.some(g => g.id === 's_tough')) { boss.maxHp *= 1.5; boss.hp = boss.maxHp; }
+    
+    // KEEP: s_power still increases damage
+    if(specials.some(g => g.id === 's_power')) boss.dmgMult *= 1.3;
+    
+    if (boss.hasFunnel) {
+        boss.funnels.push({angle: 0, timer: 0, hp: 30, maxHp: 30, active: true, respawnTimer: 0});
+        boss.funnels.push({angle: PI, timer: 30, hp: 30, maxHp: 30, active: true, respawnTimer: 0});
+    }
+
+    let statusDiv = document.getElementById('boss-status'); statusDiv.innerHTML = '';
+    if(boss.hasDouble) statusDiv.innerHTML += '<div class="text-xs text-purple-400 font-bold">★ DOUBLE</div>';
+    if(boss.hasRegen) statusDiv.innerHTML += '<div class="text-xs text-green-400 font-bold">? REGEN</div>';
+    if(boss.hasBarrier) statusDiv.innerHTML += '<div class="text-xs text-blue-400 font-bold">◆ BARRIER</div>';
+    if(boss.hasThorn) statusDiv.innerHTML += '<div class="text-xs text-red-600 font-bold">? SPIKE</div>';
+    if(boss.hasFunnel) statusDiv.innerHTML += '<div class="text-xs text-cyan-400 font-bold">● DRONE</div>';
+    document.getElementById('boss-hp').style.width = '100%';
+}
+function updateBoss() {
+    boss.drawRot += 0.02;
+    if (boss.hp <= 0) return; 
+    if (boss.hasRegen && boss.hp < boss.maxHp) boss.hp += 0.05; 
+
+    if (boss.hasBarrier) {
+        boss.barrierTimer++;
+        if (boss.barrierActive) { if (boss.barrierTimer > 180) { boss.barrierActive = false; boss.barrierTimer = 0; } } 
+        else { if (boss.barrierTimer > 300) { boss.barrierActive = true; boss.barrierTimer = 0; createExplosion(boss.x, boss.y, '#00f', 15); } }
+    }
+    if (boss.hasFunnel) {
+        for(let f of boss.funnels) {
+            if (f.active) {
+                f.angle += 0.05; f.timer++;
+                if (f.timer > 120) {
+                    let fx = boss.x + cos(f.angle) * 60; let fy = boss.y + sin(f.angle) * 60;
+                    let a = atan2(player.y - fy, player.x - fx);
+                    createProjectile(fx, fy, cos(a)*5, sin(a)*5, 'BOSS', 6, 8 * boss.dmgMult);
+                    f.timer = 0;
+                }
+            } else {
+                f.respawnTimer--;
+                if (f.respawnTimer <= 0) { f.active = true; f.hp = f.maxHp; createExplosion(boss.x + cos(f.angle) * 60, boss.y + sin(f.angle) * 60, '#0ff', 10); }
+            }
+        }
+    }
+    if (boss.hasRage && !boss.isRaged && boss.hp < boss.maxHp * 0.5) {
+        boss.isRaged = true; boss.cdMult *= 0.6; boss.color = COLORS.bossRage; createExplosion(boss.x, boss.y, '#f00', 20);
+        document.getElementById('boss-status').innerHTML += '<div class="text-xs text-red-500 font-bold">? OVERDRIVE ?</div>';
+    }
+    boss.timer--;
+    updateNormalBehavior();
+    
+    // Bounds check
+    if (boss.state !== 'SHADOW_RUSH' && boss.state !== 'VANISH_WAIT' && boss.state !== 'VANISH_LOCK' && boss.state !== 'VANISH_FALL') { 
+        boss.x = constrain(boss.x, boss.size, width-boss.size); boss.y = constrain(boss.y, boss.size, height-boss.size); 
+    }
+}
+function updateNormalBehavior() {
+    if (boss.state === 'IDLE') {
+        if (boss.timer <= 0) {
+            if (random() < 0.6) {
+                boss.state = 'CHARGE'; boss.timer = 40 * boss.cdMult; boss.currentAttack = random(boss.glyphParts.attacks);
+            } else {
+                boss.state = 'MOVE'; boss.timer = 60 * boss.cdMult; boss.currentMove = random(boss.glyphParts.moves);
+                if (boss.currentMove.id.includes('warp')) { 
+                    createExplosion(boss.x, boss.y, '#00ffff', 40); boss.x = random(50, width-50); boss.y = random(50, height-50); 
+                    createExplosion(boss.x, boss.y, '#ff00ff', 40); boss.state = 'IDLE'; boss.timer = 20; 
+                }
+                else if (boss.currentMove.id.includes('dash')) { let a = atan2(player.y - boss.y, player.x - boss.x); let s = 15; if(boss.isRaged) s *= 1.3; boss.vx = cos(a)*s; boss.vy = sin(a)*s; }
+                else if (boss.currentMove.id === 'm_step') { boss.state = 'STEP_MOVE'; boss.stepCount = 0; boss.timer = 10; }
+                else if (boss.currentMove.id === 'm_stalker') { createExplosion(boss.x, boss.y, '#555', 20); let a = atan2(mouseY - player.y, mouseX - player.x); let distBehind = 300; boss.x = player.x - cos(a) * distBehind; boss.y = player.y - sin(a) * distBehind; createExplosion(boss.x, boss.y, '#555', 20); boss.state = 'IDLE'; boss.timer = 20; }
+                else if (boss.currentMove.id === 'm_shadow_rush') { // UPDATED BEHAVIOR: Orbiting
+                    boss.state = 'SHADOW_RUSH'; 
+                    boss.rushAngle = atan2(boss.y - player.y, boss.x - player.x);
+                    boss.rushDist = 300;
+                    boss.timer = 50; 
+                    createParticle(boss.x, boss.y, '#fff', 'boom', 20);
+                }
+                else if (boss.currentMove.id === 'm_vanish_drop') { // NEW BEHAVIOR: Vanish Drop
+                    boss.state = 'VANISH_WAIT'; 
+                    createExplosion(boss.x, boss.y, '#555', 20); // Smoke
+                    boss.x = -999; boss.y = -999; // Vanish
+                    boss.timer = 60; // 1s wait
+                    boss.dropTargetX = player.x; 
+                }
+            }
+        }
+    } else if (boss.state === 'CHARGE') {
+        if (boss.timer <= 0) { 
+            boss.state = 'ATTACK'; 
+            executeBossAttack(boss.currentAttack); 
+            // SPECIAL CASE: Stay longer for Implode attack
+            if (boss.currentAttack.id === 'a_implode') boss.timer = 100;
+            else boss.timer = 20; 
+            
+            if (boss.glyphParts.fields.length > 0 && random() < 0.3) executeBossField(random(boss.glyphParts.fields)); 
+        }
+    } else if (boss.state === 'ATTACK') {
+        if (boss.timer <= 0) { boss.state = 'IDLE'; boss.timer = 30; }
+    } else if (boss.state === 'MOVE') {
+        executeBossMove(boss.currentMove); if (boss.timer <= 0) { boss.state = 'IDLE'; boss.timer = 20 * boss.cdMult; boss.vx = 0; boss.vy = 0; }
+    } else if (boss.state === 'STEP_MOVE') { 
+        if (boss.timer <= 0) {
+            createParticle(boss.x, boss.y, '#fff', 'boom', 10); 
+            // Min Distance Logic
+            let angle, destX, destY, attempts = 0;
+            do {
+                angle = random(TWO_PI);
+                destX = boss.x + cos(angle) * 120;
+                destY = boss.y + sin(angle) * 120;
+                destX = constrain(destX, 50, width-50);
+                destY = constrain(destY, 50, height-50);
+                attempts++;
+            } while (dist(boss.x, boss.y, destX, destY) < 80 && attempts < 10);
+
+            boss.x = destX; boss.y = destY;
+            boss.stepCount++; boss.timer = 15;
+            if (boss.stepCount >= 3) { boss.state = 'IDLE'; boss.timer = 30; }
+        }
+    } else if (boss.state === 'SHADOW_RUSH') {
+        // Orbit around player
+        boss.rushAngle += 0.25; // Fast rotation
+        let targetX = player.x + cos(boss.rushAngle) * boss.rushDist;
+        let targetY = player.y + sin(boss.rushAngle) * boss.rushDist;
+        
+        // Use Lerp for "laggy" ghost effect
+        boss.x = lerp(boss.x, targetX, 0.4);
+        boss.y = lerp(boss.y, targetY, 0.4);
+        
+        if (frameCount % 2 === 0) createParticle(boss.x, boss.y, '#555', 'boom', boss.size * 0.8);
+        
+        if (boss.timer <= 0) { 
+            boss.state = 'IDLE'; boss.timer = 30; 
+        }
+    } else if (boss.state === 'VANISH_WAIT') {
+        // Track player horizontally
+        boss.dropTargetX = lerp(boss.dropTargetX, player.x, 0.1);
+        boss.timer--;
+        if (boss.timer <= 0) {
+            boss.state = 'VANISH_LOCK'; // LOCK PHASE ADDED
+            boss.timer = 40; // Lock delay (approx 0.6s)
+            createParticle(boss.dropTargetX, 0, '#f00', 'charge', 10); // Visual cue
+        }
+    } else if (boss.state === 'VANISH_LOCK') {
+        boss.timer--;
+        if (boss.timer <= 0) {
+            boss.state = 'VANISH_FALL';
+            boss.x = boss.dropTargetX;
+            boss.y = -200;
+            boss.vy = 40; // Very fast drop
+        }
+    } else if (boss.state === 'VANISH_FALL') {
+        boss.y += boss.vy;
+        if (boss.y >= player.y) { // Impact at player height
+             boss.y = player.y; 
+             createExplosion(boss.x, boss.y, '#f05', 30);
+             createProjectile(boss.x, boss.y, 0, 0, 'BOSS', 60, 20, {type: 'SHOCKWAVE', life: 20}); // Impact wave
+             boss.state = 'IDLE';
+             boss.timer = 40;
+             boss.y = constrain(boss.y, 50, height-50);
+        }
+    }
+}
+
+function executeBossAttack(glyph, isDouble=false) {
+    if (!isDouble && boss.hasDouble && random() < 0.3) { setTimeout(() => executeBossAttack(glyph, true), 300); createParticle(boss.x, boss.y, '#b0f', 'boom', 10); }
+    let angle = atan2(player.y - boss.y, player.x - boss.x); let spd = 6 * boss.bulletSpeedMult; let dmg = 10 * boss.dmgMult; if(boss.isRaged) { spd *= 1.2; dmg *= 1.2; }
+    
+    if (glyph.id === 'a_bullet') createProjectile(boss.x, boss.y, cos(angle)*spd, sin(angle)*spd, 'BOSS', 8, dmg);
+    else if (glyph.id === 'a_spread') for(let a of [-0.3, 0, 0.3]) createProjectile(boss.x, boss.y, cos(angle+a)*spd, sin(angle+a)*spd, 'BOSS', 8, dmg);
+    else if (glyph.id === 'a_5way') for(let a of [-0.4, -0.2, 0, 0.2, 0.4]) createProjectile(boss.x, boss.y, cos(angle+a)*spd, sin(angle+a)*spd, 'BOSS', 8, dmg);
+    else if (glyph.id === 'a_cross') for(let d of [0, PI/2, PI, 3*PI/2]) createProjectile(boss.x, boss.y, cos(d)*spd, sin(d)*spd, 'BOSS', 8, dmg);
+    else if (glyph.id === 'a_freeze') for(let i=0; i<5; i++) { let offsetA = angle + (i-2)*0.3; createProjectile(boss.x, boss.y, cos(offsetA)*8, sin(offsetA)*8, 'BOSS', 8, dmg, {type: 'FREEZE', timer: 30, state: 'MOVING'}); }
+    else if (glyph.id === 'a_split') createProjectile(boss.x, boss.y, cos(angle)*spd, sin(angle)*spd, 'BOSS', 12, dmg, {type: 'SPLIT', timer: 40, state: 'MOVING'});
+    else if (glyph.id === 'a_homing') createProjectile(boss.x, boss.y, cos(angle)*3, sin(angle)*3, 'BOSS', 10, dmg, {type: 'HOMING'});
+    else if (glyph.id === 'a_ricochet') for(let a of [-0.2, 0.2]) createProjectile(boss.x, boss.y, cos(angle+a)*spd*1.5, sin(angle+a)*spd*1.5, 'BOSS', 8, dmg, {type: 'BOUNCE', bounces: 2});
+    else if (glyph.id === 'a_nuke') createProjectile(boss.x, boss.y, cos(angle)*6, sin(angle)*6, 'BOSS', 40, dmg*3, {type: 'BOUNCE', bounces: 2});
+    else if (glyph.id === 'a_wave') createProjectile(boss.x, boss.y, 0, 0, 'BOSS', 40, dmg*1.5, {type: 'SHOCKWAVE', life: 80});
+    else if (glyph.id === 'a_cutter') { for(let i=0; i<4; i++) { let fireAngle = (PI/2) * i; createProjectile(boss.x, boss.y, cos(fireAngle)*10, sin(fireAngle)*10, 'BOSS', 12, dmg, {type: 'SHOOTER_CUTTER', timer: 60, state: 'OUT', angle: fireAngle}); } }
+    else if (glyph.id === 'a_cluster') createProjectile(boss.x, boss.y, cos(angle)*7, sin(angle)*7, 'BOSS', 15, dmg, {type: 'CLUSTER', timer: 40});
+    
+    // CHANGE: Center is now a fixed coordinate object {x, y}, not the moving boss object
+    else if (glyph.id === 'a_orbit_shot') for(let i=0; i<4; i++) createProjectile(boss.x, boss.y, 0, 0, 'BOSS', 10, dmg, {type: 'ORBIT_SHOT', angle: (PI/2)*i, dist: 50, center: {x: boss.x, y: boss.y}});
+    
+    else if (glyph.id === 'a_charge_shot') createProjectile(boss.x, boss.y, cos(angle)*2, sin(angle)*2, 'BOSS', 15, dmg*2, {type: 'CHARGE_SHOT', timer: 0});
+    else if (glyph.id === 'a_circle') for(let i=0; i<12; i++) createProjectile(boss.x, boss.y, cos(TWO_PI/12*i)*spd, sin(TWO_PI/12*i)*spd, 'BOSS', 6, dmg);
+    else if (glyph.id === 'a_sniper') createProjectile(boss.x, boss.y, cos(angle)*spd*2.5, sin(angle)*spd*2.5, 'BOSS', 12, dmg*1.5);
+    else if (glyph.id === 'a_spiral') for(let i=0; i<3; i++) setTimeout(() => { for(let j=0; j<8; j++) createProjectile(boss.x, boss.y, cos(TWO_PI/8*j+(i*0.2))*spd, sin(TWO_PI/8*j+(i*0.2))*spd, 'BOSS', 6, dmg); }, i * 100);
+    else if (glyph.id === 'a_laser') createProjectile(boss.x, boss.y, cos(angle)*15, sin(angle)*15, 'BOSS', 25, dmg*2);
+    else if (glyph.id === 'a_mine_scatter') { for(let i=0; i<12; i++) { let a = random(TWO_PI); let s = random(8, 22); let f = random(0.88, 0.96); createProjectile(boss.x, boss.y, cos(a)*s, sin(a)*s, 'BOSS', 10, dmg, {type: 'MINE', timer: random(50, 90), friction: f}); } } 
+    else if (glyph.id === 'a_implode') {
+        for(let i=0; i<10; i++) { // Reduced count to 10
+            let sx, sy;
+            // Spawn well outside screen
+            if (random() < 0.5) {
+                sx = random() < 0.5 ? -100 : width + 100;
+                sy = random(-100, height + 100);
+            } else {
+                sx = random(-100, width + 100);
+                sy = random() < 0.5 ? -100 : height + 100;
+            }
+            // Target is boss center
+            let rndSpeed = random(2.0, 5.0); // Randomize speed
+            createProjectile(sx, sy, 0, 0, 'BOSS', 12, dmg, {type: 'IMPLODE', target: {x: boss.x, y: boss.y}, speed: rndSpeed});
+        }
+    }
+}
+
+function executeBossMove(glyph) {
+    let speed = boss.isRaged ? 1.5 : 1.0;
+    if (glyph.id === 'm_chase') {
+        let d = dist(boss.x, boss.y, player.x, player.y);
+        if (d > 150) { boss.x = lerp(boss.x, player.x, 0.03 * speed); boss.y = lerp(boss.y, player.y, 0.03 * speed); }
+        else if (d < 130) { let a = atan2(boss.y-player.y, boss.x-player.x); boss.x += cos(a)*2; boss.y += sin(a)*2; }
+    } else if (glyph.id === 'm_random') {
+        // Removed logic
+    } else if (glyph.id === 'm_dash') {
+        boss.x += boss.vx; boss.y += boss.vy;
+    } else if (glyph.id === 'm_zigzag') {
+        let d = dist(boss.x, boss.y, player.x, player.y);
+        let angle = atan2(player.y - boss.y, player.x - boss.x);
+        angle += sin(frameCount * 0.1) * 0.8;
+        boss.x += cos(angle) * (speed * 3);
+        boss.y += sin(angle) * (speed * 3);
+    }
+}
+
+function executeBossField(glyph) {
+    if (glyph.id === 'f_bomb') {
+        let tx = player.x + random(-100, 100); let ty = player.y + random(-100, 100);
+        tx = constrain(tx, 50, width-50); ty = constrain(ty, 50, height-50);
+        fields.push({x: tx, y: ty, r: 80, type: 'f_bomb', life: 120, maxLife: 120});
+    } else if (glyph.id === 'f_rain') {
+        for(let i=0; i<3; i++) {
+            let tx = random(50, width-50); let ty = random(50, height-50);
+            fields.push({x: tx, y: ty, r: 60, type: 'f_bomb', life: 120 + i*20, maxLife: 120});
+        }
+    } else if (glyph.id === 'f_suction') {
+        let tx = random(100, width-100); let ty = random(100, height-100);
+        fields.push({x: tx, y: ty, r: 250, type: 'f_suction', life: 240, maxLife: 240});
+    } else if (glyph.id === 'f_geo_bomb') {
+        for(let i=0; i<2; i++) {
+            let tx = random(100, width-100); let ty = random(100, height-100);
+            let subtype = random() < 0.5 ? 'PLUS' : 'X';
+            fields.push({x: tx, y: ty, r: 40, type: 'f_geo_bomb', subtype: subtype, life: 180, maxLife: 180});
+        }
+    } else if (glyph.id === 'f_line_bomb') {
+        let x = random(50, width-50); let y = random(50, height-50);
+        fields.push({type: 'f_line_pre', axis: 'V', x: x, y: height/2, w: 60, h: height, life: 60, maxLife: 60});
+        fields.push({type: 'f_line_pre', axis: 'H', x: width/2, y: y, w: width, h: 60, life: 60, maxLife: 60});
+    }
+}
+function drawBoss() {
+    // Hide boss if Vanishing
+    if (boss.state === 'VANISH_WAIT' || boss.state === 'VANISH_FALL' || boss.state === 'VANISH_LOCK') return;
+
+    push(); let drawColor = boss.isRaged ? COLORS.bossRage : COLORS.boss;
+    if (boss.barrierActive) {
+        noFill(); stroke(0, 100, 255, 150); strokeWeight(4); ellipse(boss.x, boss.y, boss.size * 2.5);
+        fill(0, 100, 255, 30); ellipse(boss.x, boss.y, boss.size * 2.5);
+    }
+    if (boss.hasFunnel) {
+        for(let f of boss.funnels) {
+            if (f.active) {
+                let fx = boss.x + cos(f.angle) * 60; let fy = boss.y + sin(f.angle) * 60;
+                fill('#0ff'); noStroke(); rectMode(CENTER);
+                push(); translate(fx, fy); rotate(f.angle); rect(0,0,15,15);
+                let fpct = f.hp / f.maxHp; fill(50); rect(0, -12, 16, 3); fill(0, 255, 0); rect(0 - 8 + 8*fpct, -12, 16*fpct, 3); pop();
+            }
+        }
+    }
+    
+    translate(boss.x, boss.y); 
+    
+    let hpW = 80; let hpH = 6;
+    noStroke(); fill(0, 0, 0, 150); rect(0, -boss.size - 20, hpW, hpH);
+    fill(boss.isRaged ? '#f00' : '#f0f'); 
+    let bossPct = Math.max(0, boss.hp / boss.maxHp);
+    rectMode(CORNER); rect(-hpW/2, -boss.size - 23, hpW * bossPct, hpH);
+    rectMode(CENTER);
+    
+    noFill(); stroke(drawColor); strokeWeight(2);
+    push(); rotate(boss.drawRot);
+    beginShape(); for(let i=0; i<6; i++) { let a = (TWO_PI/6)*i; vertex(boss.size*0.8 * cos(a), boss.size*0.8 * sin(a)); } endShape(CLOSE);
+    pop();
+
+    push(); rotate(-boss.drawRot * 0.5); strokeWeight(1); stroke(255, 100); noFill(); ellipse(0,0, boss.size*2.2, boss.size*2.2);
+    for(let i=0; i<3; i++) { let a = (TWO_PI/3)*i; fill(drawColor); noStroke(); ellipse(boss.size*1.1*cos(a), boss.size*1.1*sin(a), 5, 5); }
+    pop();
+
+    if (boss.hasThorn) {
+        stroke('#f00'); strokeWeight(2);
+        for(let i=0; i<8; i++) { let a = (TWO_PI/8)*i + boss.drawRot*2; line(boss.size*0.5*cos(a), boss.size*0.5*sin(a), boss.size*1.2*cos(a), boss.size*1.2*sin(a)); }
+    }
+    if (boss.isRaged) { stroke(255, 0, 0, 100 + sin(frameCount*0.5)*100); ellipse(0, 0, boss.size*2.8, boss.size*2.8); }
+    if (boss.hp < boss.maxHp * 0.3) { stroke(255, 0, 0, random(255)); line(-boss.size, -boss.size, boss.size, boss.size); }
+    pop();
+}
+
+function createProjectile(x, y, vx, vy, owner, size, dmg, behavior=null) { projectiles.push({ x, y, vx, vy, owner, size, dmg, behavior }); }
+function updateProjectiles() {
+    let suctionActive = false; // Flag to check if Nova Cycle is active
+
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+        let p = projectiles[i]; let remove = false;
+        if (p.behavior) {
+            if (p.behavior.type === 'HOMING') { let a = atan2(player.y-p.y, player.x-p.x); p.vx=lerp(p.vx,cos(a)*3,0.05); p.vy=lerp(p.vy,sin(a)*3,0.05); }
+            else if (p.behavior.type === 'SHOCKWAVE') { p.size+=6; p.behavior.life--; if(p.behavior.life<=0) remove=true; }
+            else if (p.behavior.type === 'FREEZE') {
+                if(p.behavior.state==='MOVING') { p.behavior.timer--; if(p.behavior.timer<=0) { p.behavior.state='STOPPED'; p.behavior.timer=40; p.savedVx = p.vx; p.savedVy = p.vy; p.vx = 0; p.vy = 0; } }
+                else if(p.behavior.state==='STOPPED') { p.behavior.timer--; if(p.behavior.timer<=0) { p.behavior.state='RESUME'; let a = atan2(player.y-p.y, player.x-p.x); p.vx=cos(a)*10; p.vy=sin(a)*10; } }
+            } else if (p.behavior.type === 'SPLIT') {
+                p.behavior.timer--; if(p.behavior.timer<=0) { remove=true; for(let k=0; k<6; k++) createProjectile(p.x, p.y, cos(TWO_PI/6*k)*6, sin(TWO_PI/6*k)*6, 'BOSS', 6, p.dmg*0.7); createExplosion(p.x, p.y, COLORS.bulletSplit, 5); }
+            } else if (p.behavior.type === 'SHOOTER_CUTTER') { 
+                p.behavior.timer--; 
+                let turnSpeed = 0.08; 
+                let currentAngle = atan2(p.vy, p.vx);
+                if (p.behavior.state === 'OUT') {
+                    currentAngle += turnSpeed;
+                    let speed = 10;
+                    p.vx = cos(currentAngle) * speed;
+                    p.vy = sin(currentAngle) * speed;
+                    if(p.behavior.timer <= 0) p.behavior.state = 'RETURN';
+                } else {
+                    let a = atan2(boss.y - p.y, boss.x - p.x);
+                    p.vx = lerp(p.vx, cos(a)*12, 0.1);
+                    p.vy = lerp(p.vy, sin(a)*12, 0.1);
+                    if(dist(p.x, p.y, boss.x, boss.y) < 30) remove = true;
+                }
+            } else if (p.behavior.type === 'BOOMERANG') {
+                p.behavior.timer--; if(p.behavior.timer<=0 && p.behavior.state === 'OUT') { p.behavior.state = 'RETURN'; p.vx *= -1; p.vy *= -1; }
+            } else if (p.behavior.type === 'CLUSTER') {
+                p.behavior.timer--; if(p.behavior.timer<=0) { remove=true; for(let k=0; k<8; k++) { let a = random(TWO_PI); createProjectile(p.x, p.y, cos(a)*5, sin(a)*5, 'BOSS', 5, p.dmg*0.5); } createExplosion(p.x, p.y, '#fa0', 5); }
+            } else if (p.behavior.type === 'ORBIT_SHOT') {
+                p.behavior.angle += 0.025; p.behavior.dist += 2.0; let cx = p.behavior.center.x; let cy = p.behavior.center.y;
+                p.x = cx + cos(p.behavior.angle) * p.behavior.dist; p.y = cy + sin(p.behavior.angle) * p.behavior.dist; continue; 
+            } else if (p.behavior.type === 'CHARGE_SHOT') {
+                p.behavior.timer++; p.vx *= 1.02; p.vy *= 1.02; p.size = Math.min(50, 15 + p.behavior.timer * 0.5);
+            } else if (p.behavior.type === 'MINE') {
+                p.vx *= p.behavior.friction; p.vy *= p.behavior.friction; 
+                p.behavior.timer--;
+                if(p.behavior.timer <= 0) {
+                    remove = true;
+                    fields.push({x: p.x, y: p.y, r: 60, type: 'f_bomb', life: 80, maxLife: 80});
+                    createExplosion(p.x, p.y, '#fa0', 10);
+                }
+            }
+            else if (p.behavior.type === 'IMPLODE') {
+                suctionActive = true;
+                // Move towards target
+                let tx = p.behavior.target.x; let ty = p.behavior.target.y;
+                let a = atan2(ty - p.y, tx - p.x);
+                let spd = p.behavior.speed; 
+                p.vx = cos(a) * spd; p.vy = sin(a) * spd;
+                
+                if (dist(p.x, p.y, tx, ty) < 15) remove = true; // Reach center
+            }
+        }
+        if(!remove) {
+            p.x += p.vx; p.y += p.vy;
+            if (p.behavior && p.behavior.type === 'BOUNCE') { let b=false; if(p.x<0||p.x>width){p.vx*=-1;b=true;} if(p.y<0||p.y>height){p.vy*=-1;b=true;} if(b){p.behavior.bounces--; if(p.behavior.bounces<=0)p.behavior=null;} }
+            else if (p.x<0||p.x>width||p.y<0||p.y>height) {
+                // Only remove if NOT imploding (implode starts outside)
+                if (!p.behavior || p.behavior.type !== 'IMPLODE') remove=true;
+            }
+        }
+        if(remove) projectiles.splice(i, 1);
+    }
+
+    // Apply player suction if NOVA_CYCLE is active
+    if (suctionActive) {
+        let angle = atan2(boss.y - player.y, boss.x - player.x);
+        let suctionForce = 1.5;
+        player.x += cos(angle) * suctionForce;
+        player.y += sin(angle) * suctionForce;
+    }
+}
+
+function drawProjectiles() {
+    noStroke();
+    for (let p of projectiles) {
+        if (p.owner === 'PLAYER') fill(COLORS.bulletPlayer);
+        else if (p.behavior) {
+            if (p.behavior.type === 'HOMING') fill(COLORS.bulletHoming);
+            else if (p.behavior.type === 'BOUNCE') fill(COLORS.bulletRicochet);
+            else if (p.behavior.type === 'FREEZE') fill(COLORS.bulletFreeze);
+            else if (p.behavior.type === 'SPLIT' || p.behavior.type === 'CLUSTER') fill(COLORS.bulletSplit);
+            else if (p.behavior.type === 'SHOCKWAVE') { noFill(); stroke(COLORS.bulletBoss); strokeWeight(4); ellipse(p.x, p.y, p.size, p.size); continue; }
+            else if (p.behavior.type === 'ORBIT_SHOT') fill('#0ff');
+            else if (p.behavior.type === 'CHARGE_SHOT') fill('#f00');
+            else if (p.behavior.type === 'SHOOTER_CUTTER') {
+                push(); translate(p.x, p.y); 
+                rotate(frameCount * 0.5); 
+                noFill(); stroke('#f0f'); strokeWeight(2);
+                triangle(0, -10, 8, 5, -8, 5); 
+                pop();
+                continue;
+            }
+            else if (p.behavior.type === 'MINE') {
+                let flash = Math.floor(frameCount / 10) % 2 === 0;
+                fill(flash ? '#ff0' : '#840'); ellipse(p.x, p.y, p.size, p.size);
+                continue;
+            }
+            else if (p.behavior.type === 'LASER_BEAM') {
+                push(); translate(p.x, p.y); rotate(atan2(p.vy, p.vx));
+                fill(255, 0, 0); rect(-20, -5, 40, 10);
+                pop();
+                continue;
+            }
+            else if (p.behavior.type === 'LASER_BEAM_ROT') { 
+                p.behavior.angle += 0.05;
+                push(); translate(p.x, p.y); rotate(p.behavior.angle);
+                fill(255, 0, 0, 150); rect(0, -10, 1000, 20); 
+                pop();
+                continue;
+            }
+            else if (p.behavior.type === 'IMPLODE') {
+                fill('#aaf');
+            }
+            else fill(COLORS.bulletBoss);
+        } else fill(COLORS.bulletBoss);
+        ellipse(p.x, p.y, p.size, p.size);
+    }
+}
+function updateFields() {
+    for (let i = fields.length - 1; i >= 0; i--) {
+        fields[i].life--;
+        if (fields[i].type === 'f_bomb' && fields[i].life <= 0) { explodeField(fields[i], true); fields.splice(i, 1); }
+        else if (fields[i].type === 'f_geo_bomb' && fields[i].life <= 0) { explodeGeoBomb(fields[i]); fields.splice(i, 1); }
+        else if (fields[i].type === 'f_line_pre' && fields[i].life <= 0) {
+            fields.push({type: 'f_hazard_rect', x: fields[i].x, y: fields[i].y, w: fields[i].w, h: fields[i].h, life: 20});
+            createExplosion(fields[i].x, fields[i].y, '#f55', 20);
+            fields.splice(i, 1);
+        }
+        else if (fields[i].life <= 0) fields.splice(i, 1);
+    }
+}
+function explodeGeoBomb(f) {
+    createExplosion(f.x, f.y, '#fa0', 20);
+    if(f.subtype === 'PLUS') { fields.push({type: 'f_hazard_rect', x: f.x, y: f.y, w: 1000, h: 40, life: 10}); fields.push({type: 'f_hazard_rect', x: f.x, y: f.y, w: 40, h: 1000, life: 10}); } 
+    else { fields.push({type: 'f_hazard_cross', x: f.x, y: f.y, angle: PI/4, life: 10}); }
+}
+function explodeField(f, isBomb=false) {
+    createExplosion(f.x, f.y, '#fa0', 30); let r = isBomb ? f.r : f.r + 20;
+    let d = dist(player.x, player.y, f.x, f.y);
+    if (d < r) { if(!player.invincible) {playerStats.hp -= 25; player.shakeTimer = 20;} createParticle(player.x, player.y, '#f00', 'boom'); }
+}
+function drawFields() {
+    for (let f of fields) {
+        noStroke();
+        if (f.type === 'f_bomb') {
+             let opacity = map(f.life, 120, 0, 20, 200); fill(255, 0, 0, opacity); ellipse(f.x, f.y, f.r * 2);
+             noFill(); stroke(255, 100, 0); strokeWeight(2); let angle = map(f.life, 120, 0, 0, TWO_PI); arc(f.x, f.y, f.r*2, f.r*2, -PI/2, -PI/2 + angle);
+        } else if (f.type === 'f_suction') {
+             noFill(); stroke(COLORS.suction); let pulse = (frameCount % 60) * 4; ellipse(f.x, f.y, f.r * 2 - pulse);
+             fill(200, 0, 200, 50); ellipse(f.x, f.y, f.r * 2);
+        } else if (f.type === 'f_geo_bomb') {
+             // Warning Circle
+             let pct = 1 - (f.life / f.maxLife);
+             fill(255, 100, 0, 50); noStroke(); ellipse(f.x, f.y, 60);
+             
+             // Timer Arc
+             noFill(); stroke(255, 50, 0); strokeWeight(3);
+             arc(f.x, f.y, 60, 60, -PI/2, -PI/2 + TWO_PI * pct);
+             
+             // Flashing Core
+             let blink = frameCount % 10 < 5 ? 255 : 100;
+             if (f.life < 30) blink = frameCount % 4 < 2 ? 255 : 255; // Solid bright near end
+             fill(255, 200, 0, blink); noStroke(); ellipse(f.x, f.y, 30);
+             
+             // Cross/Plus indicator
+             stroke(255, 100, 0, 150); strokeWeight(2);
+             if(f.subtype === 'PLUS') { 
+                 rectMode(CENTER);
+                 fill(255, 50, 0, 30 + 100*pct); // Warning lines getting brighter
+                 rect(f.x, f.y, 2000, 20); rect(f.x, f.y, 20, 2000); 
+             } else { 
+                 push(); translate(f.x, f.y); rotate(PI/4); 
+                 fill(255, 50, 0, 30 + 100*pct);
+                 rect(0, 0, 2000, 20); rect(0, 0, 20, 2000); 
+                 pop(); 
+             }
+        } else if (f.type === 'f_hazard_rect') {
+             // Flash white then fade to red
+             let alpha = map(f.life, 20, 0, 255, 0);
+             let whiteMix = map(f.life, 20, 15, 255, 0);
+             fill(255, 100 + whiteMix, whiteMix, alpha); 
+             rectMode(CENTER); rect(f.x, f.y, f.w, f.h);
+        } else if (f.type === 'f_hazard_cross') {
+             let alpha = map(f.life, 10, 0, 255, 0);
+             let whiteMix = map(f.life, 10, 5, 255, 0);
+             push(); translate(f.x, f.y); rotate(f.angle); 
+             fill(255, 100 + whiteMix, whiteMix, alpha); 
+             rectMode(CENTER); rect(0, 0, 1000, 40); rect(0, 0, 40, 1000); pop();
+        } else if (f.type === 'f_line_pre') {
+             // Background
+             fill(255, 0, 0, 30); noStroke(); rectMode(CENTER);
+             rect(f.x, f.y, f.w, f.h);
+             
+             // Charging Bar
+             let pct = 1 - (f.life / f.maxLife);
+             fill(255, 0, 0, 150 + 100*pct);
+             if(f.w > f.h) { // Horizontal
+                 rect(f.x, f.y, f.w, f.h * pct); // Fill height
+             } else { // Vertical
+                 rect(f.x, f.y, f.w * pct, f.h); // Fill width
+             }
+             
+             // Outline
+             noFill(); stroke(255, 0, 0); strokeWeight(1);
+             rect(f.x, f.y, f.w, f.h);
+        }
+    }
+}
+function checkCollisions() {
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+        let p = projectiles[i]; let hit = false;
+        if (p.owner === 'PLAYER') {
+            let hitRange = boss.size/2 + p.size/2;
+            let hitBoss = dist(p.x, p.y, boss.x, boss.y) < hitRange;
+            
+            // Can't hit if vanished
+            if (boss.state === 'VANISH_WAIT' || boss.state === 'VANISH_FALL' || boss.state === 'VANISH_LOCK') hitBoss = false;
+
+            if (hitBoss && boss.barrierActive && boss.hasBarrier) {
+                createParticle(p.x, p.y, '#00f', 'boom');
+                projectiles.splice(i, 1);
+                continue;
+            }
+
+            // Funnel Collision Check
+            if (boss.hasFunnel) {
+                let hitFunnel = false;
+                for(let f of boss.funnels) {
+                    if (f.active) {
+                        let fx = boss.x + cos(f.angle) * 60;
+                        let fy = boss.y + sin(f.angle) * 60;
+                        if (dist(p.x, p.y, fx, fy) < 20) {
+                            f.hp -= p.dmg;
+                            createParticle(fx, fy, '#0ff', 'boom', 5);
+                            hitFunnel = true;
+                            if (f.hp <= 0) {
+                                f.active = false;
+                                f.respawnTimer = 600; // 10s
+                                createExplosion(fx, fy, '#fff', 15);
+                            }
+                            break;
+                        }
+                    }
+                }
+                if (hitFunnel) {
+                    projectiles.splice(i, 1);
+                    continue;
+                }
+            }
+
+            if (hitBoss) { boss.hp -= p.dmg; createParticle(p.x, p.y, COLORS.boss, 'boom'); hit = true; if (boss.hp <= 0) killBoss(); }
+        } else {
+            let hitDist = (p.behavior && (p.behavior.type === 'SHOCKWAVE' || p.behavior.type === 'BLACKHOLE')) ? p.size/2 : 10 + p.size/2;
+            
+            // Laser Rotation Hit Check (Simplified)
+            if (p.behavior && p.behavior.type === 'LASER_BEAM_ROT') {
+                 let d = dist(player.x, player.y, p.x, p.y);
+                 if (d < 500) { // Inside range
+                     let angleToPlayer = atan2(player.y - p.y, player.x - p.x);
+                     let diff = abs(angleToPlayer - p.behavior.angle);
+                     while(diff > PI) diff -= TWO_PI;
+                     diff = abs(diff);
+                     if (diff < 0.1) hitDist = 1000; 
+                 }
+            }
+
+            if (dist(p.x, p.y, player.x, player.y) < hitDist) { 
+                if(!player.invincible) {
+                    playerStats.hp -= p.dmg; 
+                    player.shakeTimer = 20; 
+                } 
+                createParticle(p.x, p.y, COLORS.player, 'boom'); 
+                hit = true; 
+                if (playerStats.hp <= 0) gameOver(); 
+            }
+        }
+        if (hit && (!p.behavior || (p.behavior.type !== 'SHOCKWAVE' && p.behavior.type !== 'BLACKHOLE' && p.behavior.type !== 'ORBIT_SHOT' && p.behavior.type !== 'LASER_BEAM_ROT'))) projectiles.splice(i, 1);
+    }
+    
+    // Boss Body Hit Check (Except during specific moves)
+    if (!['JUMP_UP', 'JUMP_WAIT', 'JUMP_LOCK', 'JUMP_LAND', 'VANISH_WAIT', 'VANISH_LOCK', 'VANISH_FALL'].includes(boss.state)) {
+        let d = dist(player.x, player.y, boss.x, boss.y);
+        if (d < boss.size/2 + 10) {
+            let dmg = 1;
+            if (boss.hasThorn) { 
+                dmg = 5; 
+                let angle = atan2(player.y - boss.y, player.x - boss.x);
+                player.x += cos(angle) * 10; player.y += sin(angle) * 10;
+            }
+            if(!player.invincible) {
+                playerStats.hp -= dmg;
+                player.shakeTimer = 10;
+            }
+        }
+    }
+
+    for (let f of fields) {
+        if (f.type === 'f_suction') {
+            let d = dist(player.x, player.y, f.x, f.y);
+            if (d < f.r) { let angle = atan2(f.y - player.y, f.x - player.x); let force = 2.0; player.x += cos(angle) * force; player.y += sin(angle) * force; }
+        }
+        else if (f.type === 'f_hazard_rect') { if(player.x > f.x-f.w/2 && player.x < f.x+f.w/2 && player.y > f.y-f.h/2 && player.y < f.y+f.h/2 && !player.invincible) { playerStats.hp -= 2; player.shakeTimer = 10; } }
+        else if (f.type === 'f_hazard_cross') {
+            let rx = player.x-f.x; let ry = player.y-f.y; let rotX = rx*cos(-f.angle)-ry*sin(-f.angle); let rotY = rx*sin(-f.angle)+ry*cos(-f.angle);
+            if((abs(rotX)<20 || abs(rotY)<20) && !player.invincible) { playerStats.hp -= 2; player.shakeTimer = 10; }
+        }
+    }
+}
+
+// --- GAME FLOW CONTROL ---
+
+function startGame() {
+    gameState = 'DESIGN';
+    ownedGlyphIds = ['a_bullet', 'm_chase', 'f_bomb', 'a_spread'];
+    bossConfig = [getGlyphById('a_bullet'), getGlyphById('m_chase')];
+    updateDesignUI();
+    switchScreen('screen-design');
+}
+
+function confirmBoss() {
+    if (bossConfig.length === 0) return;
+    let hasA = bossConfig.some(g => g.type === 'A'); let hasM = bossConfig.some(g => g.type === 'M');
+    if (!hasA || !hasM) { document.getElementById('design-error').innerText = "ERROR: 攻撃(A)と行動(M)が最低1つずつ必要です"; return; }
+    gameState = 'BATTLE'; switchScreen(null); document.getElementById('hud').style.display = 'block';
+    initPlayer(); initBoss(); projectiles = []; fields = []; obstacles = []; 
+    document.getElementById('wave-info').innerText = "FLOOR: " + gameFloor;
+    document.getElementById('dash-container').style.opacity = '1'; 
+}
+
+function killBoss() {
+    gainedSP = Math.floor(bossConfig.length * 1.5); currentSP += gainedSP;
+    if(document.getElementById('player-sp-skill')) document.getElementById('player-sp-skill').innerText = currentSP;
+    if(document.getElementById('current-sp-display')) document.getElementById('current-sp-display').innerText = currentSP;
+    gameState = 'VICTORY_ANIM'; victoryTimer = 180; shakeAmount = 20; document.getElementById('hud').style.display = 'none';
+}
+
+function gameOver() {
+    gameState = 'GAMEOVER'; document.getElementById('final-score').innerText = "到達階層: " + gameFloor; switchScreen('screen-gameover'); document.getElementById('hud').style.display = 'none';
+}
+
+function nextFloor() {
+    gameFloor++; bossConfig = []; gameState = 'DESIGN'; updateDesignUI(); switchScreen('screen-design');
+}
+
+// --- REWARD PHASES ---
+function setupSkillTreePhase() { gameState = 'SKILL_SELECT'; switchScreen('screen-skill'); updateSkillTreeUI(); }
+
+function updateSkillTreeUI() {
+    let div = document.getElementById('skill-tree-grid'); div.innerHTML = '';
+    SKILL_TREE.forEach(skill => {
+        let btn = document.createElement('button'); let isMax = skill.currentLvl >= skill.maxLvl; let canAfford = currentSP >= skill.cost;
+        btn.className = `p-4 border rounded text-left flex flex-col justify-between h-24 transition ${isMax ? 'border-green-500 bg-green-900 opacity-50' : (canAfford ? 'border-yellow-500 bg-gray-800 hover:bg-gray-700' : 'border-gray-600 bg-gray-900 opacity-50 cursor-not-allowed')}`;
+        btn.innerHTML = `<div class="flex justify-between w-full"><span class="font-bold ${isMax ? 'text-green-400' : 'text-yellow-400'}">${skill.name}</span><span class="text-xs text-white">Lv.${skill.currentLvl}/${skill.maxLvl}</span></div><div class="text-xs text-gray-400">${skill.desc}</div><div class="text-right text-sm font-bold ${canAfford ? 'text-cyan-400' : 'text-red-400'}">Cost: ${skill.cost} SP</div>`;
+        btn.onclick = () => {
+            if(!isMax && canAfford) {
+                currentSP -= skill.cost; skill.currentLvl++; skill.apply(skill.currentLvl);
+                if(document.getElementById('player-sp-skill')) document.getElementById('player-sp-skill').innerText = currentSP;
+                if(document.getElementById('current-sp-display')) document.getElementById('current-sp-display').innerText = currentSP;
+                updateSkillTreeUI(); 
+            }
+        };
+        div.appendChild(btn);
+    });
+}
+
+function setupLootPhase() {
+    gameState = 'LOOT_VIEW'; 
+    switchScreen('screen-loot');
+    let div = document.getElementById('loot-display'); 
+    div.innerHTML = '';
+    
+    // Config Picks
+    let moduleCount = bossConfig.length;
+    lootPicksRemaining = moduleCount > 10 ? 2 : 1;
+    
+    updateLootMessage();
+
+    let unowned = GLYPH_DB.filter(g => !ownedGlyphIds.includes(g.id));
+    if(unowned.length === 0) {
+        div.innerHTML = '<div class="col-span-4 text-center text-yellow-400">全ての石板を解析済み<br>ボーナスSP獲得</div>';
+        currentSP += 10;
+        if(document.getElementById('player-sp-skill')) document.getElementById('player-sp-skill').innerText = currentSP;
+        if(document.getElementById('current-sp-display')) document.getElementById('current-sp-display').innerText = currentSP;
+        setTimeout(() => setupSkillTreePhase(), 2000); return;
+    }
+    let choices = [];
+    for(let i=0; i<4; i++) {
+        if(unowned.length === 0) break;
+        let idx = Math.floor(random(unowned.length));
+        choices.push(unowned[idx]);
+        unowned.splice(idx, 1);
+    }
+    choices.forEach(d => {
+        let span = document.createElement('div');
+        span.className = `glyph-card p-3 text-sm text-center flex flex-col justify-center items-center h-24 glyph-${d.type}`;
+        span.id = `loot-card-${d.id}`;
+        span.innerHTML = `<div class="font-bold text-4xl mb-1">${d.type}</div><div class="text-[10px] leading-tight mt-auto">${d.name}</div>`;
+        
+        span.onclick = () => { 
+            if(span.classList.contains('disabled')) return;
+            
+            // Acquire
+            ownedGlyphIds.push(d.id); 
+            
+            // Feedback
+            span.classList.add('disabled', 'equipped');
+            span.innerHTML += '<div class="equipped-badge">GET</div>';
+            
+            lootPicksRemaining--;
+            
+            if (lootPicksRemaining <= 0) {
+                setTimeout(() => setupSkillTreePhase(), 500); 
+            } else {
+                updateLootMessage();
+            }
+        };
+        span.onmousemove = (e) => showTooltip(d.desc, e.clientX, e.clientY, d.name, d.type);
+        span.onmouseleave = () => hideTooltip(); div.appendChild(span);
+    });
+}
+
+function updateLootMessage() {
+    let msgEl = document.getElementById('loot-instruction');
+    if (lootPicksRemaining > 1) {
+        msgEl.innerHTML = `<span class="text-yellow-400 font-bold">高難易度ボーナス発動:</span> 残り <span class="text-white text-lg">${lootPicksRemaining}</span> 個のデータを選択可能`;
+    } else {
+        msgEl.innerText = "解析されたデータを選択して取得してください。";
+    }
+}
+
+function finishLootPhase() { nextFloor(); }
+function getGlyphById(id) { return {...GLYPH_DB.find(g => g.id === id)}; }
+
+// --- UI LOGIC ---
+function switchScreen(id) { document.querySelectorAll('.screen').forEach(el => el.classList.remove('active')); if (id) document.getElementById(id).classList.add('active'); }
+function updateHUD() {
+    let phpPct = (playerStats.hp / playerStats.maxHp) * 100;
+    document.getElementById('player-hp').style.width = Math.max(0, phpPct) + '%';
+    document.getElementById('player-hp-text').innerText = `${Math.ceil(Math.max(0, playerStats.hp))}/${playerStats.maxHp}`;
+
+    let bhpPct = (boss.hp / boss.maxHp) * 100;
+    document.getElementById('boss-hp').style.width = Math.max(0, bhpPct) + '%';
+    document.getElementById('boss-hp-text').innerText = `${Math.ceil(Math.max(0, bhpPct))}%`;
+}
+function updateDesignUI() {
+    let invDiv = document.getElementById('inventory-grid'); invDiv.innerHTML = '';
+    ownedGlyphIds.forEach((gid) => {
+        let item = getGlyphById(gid); if(!item || !item.id) return;
+        let isSet = bossConfig.some(b => b.id === item.id);
+        let div = document.createElement('div'); 
+        div.className = `glyph-card p-1 text-xs glyph-${item.type} ${isSet ? 'equipped' : ''}`;
+        div.innerHTML = `<div class="font-bold text-3xl mt-1">${item.type}</div><div class="text-[9px] mt-auto w-full truncate px-1">${item.name}</div>`;
+        if(isSet) div.innerHTML += '<div class="equipped-badge">SET</div>';
+        
+        div.onclick = () => { bossConfig.push(item); updateDesignUI(); };
+        div.onmousemove = (e) => showTooltip(item.desc, e.clientX, e.clientY, item.name, item.type);
+        div.onmouseleave = () => hideTooltip(); invDiv.appendChild(div);
+    });
+    
+    // Clear slots
+    document.getElementById('slots-a').innerHTML = '';
+    document.getElementById('slots-m').innerHTML = '';
+    document.getElementById('slots-f').innerHTML = '';
+    document.getElementById('slots-s').innerHTML = '';
+
+    bossConfig.forEach((item, idx) => {
+        let targetId = 'slots-' + item.type.toLowerCase();
+        let targetContainer = document.getElementById(targetId);
+        
+        if (targetContainer) {
+            let div = document.createElement('div'); 
+            div.className = `glyph-card p-1 text-xs glyph-${item.type} w-10 h-10 min-w-[40px]`; 
+            div.innerHTML = `<div class="font-bold text-lg">${item.type}</div><div class="absolute top-0 right-0 text-red-500 font-bold text-[8px] leading-none p-0.5 cursor-pointer">×</div>`;
+            div.onclick = () => { bossConfig.splice(idx, 1); updateDesignUI(); };
+            div.onmousemove = (e) => showTooltip(item.desc, e.clientX, e.clientY, item.name, item.type);
+            div.onmouseleave = () => hideTooltip(); 
+            targetContainer.appendChild(div);
+        }
+    });
+
+    let count = bossConfig.length;
+    document.getElementById('stat-count').innerText = count;
+    document.getElementById('stat-hp').innerText = `x${(1.0 + count*0.15).toFixed(2)}`;
+    let cdRed = Math.min(50, count * 5); document.getElementById('stat-cd').innerText = `${cdRed}%`;
+    let spPredict = Math.floor(count * 1.5); document.getElementById('stat-drop').innerText = `${spPredict} SP`;
+    let hasA = bossConfig.some(g => g.type === 'A'); let hasM = bossConfig.some(g => g.type === 'M');
+    let btn = document.getElementById('btn-deploy');
+    if (hasA && hasM) { btn.disabled = false; btn.classList.remove('opacity-50', 'cursor-not-allowed'); document.getElementById('design-error').innerText = ""; } 
+    else { btn.disabled = true; btn.classList.add('opacity-50', 'cursor-not-allowed'); }
+}
+function backToDesign() { 
+    gameState = 'DESIGN'; 
+    updateDesignUI(); 
+    switchScreen('screen-design'); 
+}
+function openSkillTree() { gameState = 'SKILL_SELECT'; switchScreen('screen-skill'); updateSkillTreeUI(); }
+function moveToBoss(invIdx) {} function returnToInventory(bossIdx) {}
+function retryGame() {
+    projectiles = []; fields = []; particles = []; boss = null; player = null;
+    gameState = 'DESIGN'; updateDesignUI(); switchScreen('screen-design');
+}
+</script>
+</body>
+</html>
