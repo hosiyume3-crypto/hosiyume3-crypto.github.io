@@ -165,7 +165,7 @@
                 <div id="boss-hp" class="boss-hp-bar"></div>
                 <div id="boss-hp-text" class="hp-text">100%</div>
             </div>
-            <div class="mt-2 text-sm text-cyan-400 font-mono" id="wave-info">LAYER: 01</div>
+            <div class="mt-2 text-sm text-cyan-400 font-mono" id="wave-info">MODULES: 0</div>
             <div id="boss-status" class="mt-1 flex flex-col gap-1 font-mono"></div>
         </div>
 
@@ -375,6 +375,7 @@ const GLYPH_DB = [
     { id: 's_regen',    type: 'S', tier: 2, name: 'AUTO_REPAIR', desc: 'ボスのHPが徐々に自動回復する。', weight: 2.5 }, 
     { id: 's_thorn',    type: 'S', tier: 2, name: 'SPIKE_ARMOR', desc: '接触ダメージ強化＋ノックバック。', weight: 2.5 }, 
     { id: 's_turret',   type: 'S', tier: 2, name: 'AUTO_TURRET', desc: '定期的に自律射撃を行う固定砲台を設置する。', weight: 2.5 }, 
+    // s_arms REMOVED
 
     // TIER 3
     { id: 'a_laser',    type: 'A', tier: 3, name: 'HYPER_BEAM', desc: '回避困難な極太ビームを照射する。', weight: 2.5 },
@@ -386,7 +387,7 @@ const GLYPH_DB = [
     { id: 'm_step',     type: 'M', tier: 3, name: 'PHANTOM_STEP', desc: '短距離瞬間移動を連続で行い撹乱する。', weight: 2.5 }, 
     { id: 'm_stalker',  type: 'M', tier: 3, name: 'SHADOW_STEP', desc: '一瞬でプレイヤーの背後に回り込む。', weight: 2.5 }, 
     { id: 'm_shadow_rush',type: 'M',tier: 3, name: 'SHADOW_RUSH', desc: '周囲を高速旋回し撹乱した後、停止する。', weight: 2.5 }, 
-    { id: 's_barrier',  type: 'S', tier: 3, name: 'I_FIELD', desc: '一定周期で弾を無効化するバリアを展開。', weight: 3.0 },
+    { id: 's_barrier',  type: 'S', tier: 3, name: 'I_FIELD', desc: '5回まで弾を防ぐバリアを展開する。破壊後、再展開。', weight: 3.0 }, 
     { id: 's_funnel',   type: 'S', tier: 3, name: 'DRONE_UNIT', desc: '自動攻撃を行う破壊可能なビットを展開する。', weight: 3.0 } 
 ];
 
@@ -560,6 +561,24 @@ function createParticle(x, y, color, type, size=5) {
     if(particles.length > MAX_PARTICLES) particles.shift(); // Cap particles
     particles.push({x: x, y: y, color: color, life: 1.0, type: type, vx: random(-3, 3), vy: random(-3, 3), size: size});
 }
+// NEW: Glitch Effect Helper
+function createGlitchEffect(x, y, count=20) {
+    for(let i=0; i<count; i++) {
+        let colors = ['#0ff', '#f0f', '#fff'];
+        let c = random(colors);
+        particles.push({
+            x: x + random(-30, 30), 
+            y: y + random(-30, 30), 
+            color: c, 
+            life: 1.0, 
+            type: 'noise', 
+            vx: random(-5, 5), 
+            vy: random(-5, 5), 
+            w: random(4, 20),
+            h: random(2, 6)
+        });
+    }
+}
 function createExplosion(x, y, color, count=8) {
     for(let i=0; i<count; i++) createParticle(x, y, color, 'boom', random(5, 10));
 }
@@ -569,7 +588,17 @@ function updateParticles() {
     }
 }
 function drawParticles() {
-    noStroke(); for (let p of particles) { let c = color(p.color); c.setAlpha(p.life * 255); fill(c); if (p.type === 'boom') { rectMode(CENTER); rect(p.x, p.y, p.size * p.life, p.size * p.life); } else ellipse(p.x, p.y, p.size, p.size); }
+    noStroke(); 
+    for (let p of particles) { 
+        let c = color(p.color); c.setAlpha(p.life * 255); fill(c); 
+        if (p.type === 'boom') { 
+            rectMode(CENTER); rect(p.x, p.y, p.size * p.life, p.size * p.life); 
+        } 
+        else if (p.type === 'noise') {
+            rectMode(CENTER); rect(p.x, p.y, p.w, p.h);
+        }
+        else ellipse(p.x, p.y, p.size, p.size); 
+    }
 }
 
 // --- PLAYER LOGIC ---
@@ -683,17 +712,26 @@ function initBoss() {
     if(boss.hasFunnel) statusDiv.innerHTML += '<div class="text-xs text-cyan-400 font-bold">● DRONE</div>';
     if(boss.hasTurret) statusDiv.innerHTML += '<div class="text-xs text-orange-400 font-bold">■ TURRET</div>';
     document.getElementById('boss-hp').style.width = '100%';
+    document.getElementById('wave-info').innerText = "MODULES: " + uniqueGlyphs.size; // HUD Update
 }
 function updateBoss() {
     boss.drawRot += 0.02;
     if (boss.hp <= 0) return; 
     if (boss.hasRegen && boss.hp < boss.maxHp) boss.hp += 0.05; 
 
+    // NEW BARRIER LOGIC
     if (boss.hasBarrier) {
-        boss.barrierTimer++;
-        if (boss.barrierActive) { if (boss.barrierTimer > 180) { boss.barrierActive = false; boss.barrierTimer = 0; } } 
-        else { if (boss.barrierTimer > 300) { boss.barrierActive = true; boss.barrierTimer = 0; createExplosion(boss.x, boss.y, '#00f', 15); } }
+        if (!boss.barrierActive) {
+            boss.barrierTimer++;
+            if (boss.barrierTimer > 420) { // 7s Cooldown
+                boss.barrierActive = true;
+                boss.barrierHits = 5;
+                boss.barrierTimer = 0;
+                createExplosion(boss.x, boss.y, '#00f', 15);
+            }
+        }
     }
+
     if (boss.hasFunnel) {
         for(let f of boss.funnels) {
             if (f.active) {
@@ -748,22 +786,34 @@ function updateNormalBehavior() {
             } else {
                 boss.state = 'MOVE'; boss.timer = 60 * boss.cdMult; boss.currentMove = random(boss.glyphParts.moves);
                 if (boss.currentMove.id.includes('warp')) { 
-                    createExplosion(boss.x, boss.y, '#00ffff', 40); boss.x = random(50, width-50); boss.y = random(50, height-50); 
-                    createExplosion(boss.x, boss.y, '#ff00ff', 40); boss.state = 'IDLE'; boss.timer = 20; 
+                    // EFECT: Warp out Glitch
+                    createGlitchEffect(boss.x, boss.y, 40);
+                    
+                    boss.x = random(50, width-50); boss.y = random(50, height-50); 
+                    
+                    // EFECT: Warp in Glitch
+                    createGlitchEffect(boss.x, boss.y, 40);
+                    boss.state = 'IDLE'; boss.timer = 20; 
                 }
                 else if (boss.currentMove.id.includes('dash')) { let a = atan2(player.y - boss.y, player.x - boss.x); let s = 15; if(boss.isRaged) s *= 1.3; boss.vx = cos(a)*s; boss.vy = sin(a)*s; }
                 else if (boss.currentMove.id === 'm_step') { boss.state = 'STEP_MOVE'; boss.stepCount = 0; boss.timer = 10; }
-                else if (boss.currentMove.id === 'm_stalker') { createExplosion(boss.x, boss.y, '#555', 20); let a = atan2(mouseY - player.y, mouseX - player.x); let distBehind = 300; boss.x = player.x - cos(a) * distBehind; boss.y = player.y - sin(a) * distBehind; createExplosion(boss.x, boss.y, '#555', 20); boss.state = 'IDLE'; boss.timer = 20; }
+                else if (boss.currentMove.id === 'm_stalker') { 
+                    createGlitchEffect(boss.x, boss.y, 30); // Vanish
+                    let a = atan2(mouseY - player.y, mouseX - player.x); let distBehind = 300; 
+                    boss.x = player.x - cos(a) * distBehind; boss.y = player.y - sin(a) * distBehind; 
+                    createGlitchEffect(boss.x, boss.y, 30); // Appear
+                    boss.state = 'IDLE'; boss.timer = 20; 
+                }
                 else if (boss.currentMove.id === 'm_shadow_rush') { // UPDATED BEHAVIOR: Orbiting
                     boss.state = 'SHADOW_RUSH'; 
                     boss.rushAngle = atan2(boss.y - player.y, boss.x - player.x);
                     boss.rushDist = 300;
                     boss.timer = 50; 
-                    createParticle(boss.x, boss.y, '#fff', 'boom', 20);
+                    createGlitchEffect(boss.x, boss.y, 20);
                 }
                 else if (boss.currentMove.id === 'm_vanish_drop') { // NEW BEHAVIOR: Vanish Drop
                     boss.state = 'VANISH_WAIT'; 
-                    createExplosion(boss.x, boss.y, '#555', 20); // Smoke
+                    createGlitchEffect(boss.x, boss.y, 50); // Heavy glitch vanish
                     boss.x = -999; boss.y = -999; // Vanish
                     boss.timer = 60; // 1s wait
                     boss.dropTargetX = player.x; 
@@ -786,7 +836,9 @@ function updateNormalBehavior() {
         executeBossMove(boss.currentMove); if (boss.timer <= 0) { boss.state = 'IDLE'; boss.timer = 20 * boss.cdMult; boss.vx = 0; boss.vy = 0; }
     } else if (boss.state === 'STEP_MOVE') { 
         if (boss.timer <= 0) {
-            createParticle(boss.x, boss.y, '#fff', 'boom', 10); 
+            // EFECT: Glitch Trail (Residual Image)
+            particles.push({x: boss.x, y: boss.y, w: boss.size, h: boss.size, color: '#0ff', life: 0.5, type: 'noise', vx: 0, vy: 0});
+
             // Min Distance Logic
             let angle, destX, destY, attempts = 0;
             do {
@@ -812,7 +864,7 @@ function updateNormalBehavior() {
         boss.x = lerp(boss.x, targetX, 0.4);
         boss.y = lerp(boss.y, targetY, 0.4);
         
-        if (frameCount % 2 === 0) createParticle(boss.x, boss.y, '#555', 'boom', boss.size * 0.8);
+        if (frameCount % 3 === 0) createGlitchEffect(boss.x, boss.y, 2);
         
         if (boss.timer <= 0) { 
             boss.state = 'IDLE'; boss.timer = 30; 
@@ -839,6 +891,7 @@ function updateNormalBehavior() {
         if (boss.y >= player.y) { // Impact at player height
              boss.y = player.y; 
              createExplosion(boss.x, boss.y, '#f05', 30);
+             createGlitchEffect(boss.x, boss.y, 40); // Impact glitch
              createProjectile(boss.x, boss.y, 0, 0, 'BOSS', 60, 20, {type: 'SHOCKWAVE', life: 20}); // Impact wave
              boss.state = 'IDLE';
              boss.timer = 40;
@@ -941,12 +994,23 @@ function drawBoss() {
 
     push(); let drawColor = boss.isRaged ? COLORS.bossRage : COLORS.boss;
     
-    // Barrier Visual
+    // Barrier Visual (Hit based)
     if (boss.barrierActive) {
-        noFill(); stroke(0, 100, 255, 150); strokeWeight(2);
+        // Color depends on remaining hits
+        let alpha = map(boss.barrierHits, 0, 5, 50, 200);
+        noFill(); stroke(0, 100, 255, alpha); strokeWeight(3);
+        
         rectMode(CENTER);
         push(); translate(boss.x, boss.y); rotate(frameCount * 0.05);
-        rect(0, 0, boss.size * 2.5, boss.size * 2.5);
+        rect(0, 0, boss.size * 2.8, boss.size * 2.8);
+        
+        // Hit markers
+        for(let i=0; i<boss.barrierHits; i++) {
+             push(); rotate((TWO_PI/5)*i);
+             fill(0, 200, 255); noStroke();
+             ellipse(boss.size * 1.6, 0, 8, 8);
+             pop();
+        }
         pop();
     }
 
@@ -1273,6 +1337,14 @@ function checkCollisions() {
 
             if (hitBoss && boss.barrierActive && boss.hasBarrier) {
                 createParticle(p.x, p.y, '#00f', 'boom');
+                
+                // --- FIX: Barrier Damage Logic ---
+                boss.barrierHits--; 
+                if (boss.barrierHits <= 0) {
+                    boss.barrierActive = false;
+                    createExplosion(boss.x, boss.y, '#00f', 20); // Break effect
+                }
+                
                 projectiles.splice(i, 1);
                 continue;
             }
@@ -1402,21 +1474,27 @@ function confirmBoss() {
     if (!hasA || !hasM) { document.getElementById('design-error').innerText = "ERROR: 攻撃(A)と行動(M)が最低1つずつ必要です"; return; }
     gameState = 'BATTLE'; switchScreen(null); document.getElementById('hud').style.display = 'block';
     initPlayer(); initBoss(); projectiles = []; fields = []; obstacles = []; 
-    document.getElementById('wave-info').innerText = "FLOOR: " + gameFloor;
+    document.getElementById('wave-info').innerText = "MODULES: " + new Set(bossConfig.map(g=>g.id)).size;
     document.getElementById('dash-container').style.opacity = '1'; 
     hideTooltip();
 }
 
 function killBoss() {
     let uniqueCount = new Set(bossConfig.map(g => g.id)).size;
-    gainedSP = Math.floor(uniqueCount * 1.5); currentSP += gainedSP;
+    
+    // --- FIX: Cap SP at 5 ---
+    gainedSP = Math.min(5, Math.floor(uniqueCount * 1.5)); 
+    
+    currentSP += gainedSP;
     if(document.getElementById('player-sp-skill')) document.getElementById('player-sp-skill').innerText = currentSP;
     if(document.getElementById('current-sp-display')) document.getElementById('current-sp-display').innerText = currentSP;
     gameState = 'VICTORY_ANIM'; victoryTimer = 180; shakeAmount = 20; document.getElementById('hud').style.display = 'none';
 }
 
 function gameOver() {
-    gameState = 'GAMEOVER'; document.getElementById('final-score').innerText = "到達階層: " + gameFloor; switchScreen('screen-gameover'); document.getElementById('hud').style.display = 'none';
+    gameState = 'GAMEOVER'; 
+    document.getElementById('final-score').innerText = "積載モジュール数: " + new Set(bossConfig.map(g=>g.id)).size;
+    switchScreen('screen-gameover'); document.getElementById('hud').style.display = 'none';
     hideTooltip();
 }
 
@@ -1576,7 +1654,11 @@ function updateDesignUI() {
     document.getElementById('stat-count').innerText = count;
     document.getElementById('stat-hp').innerText = `x${(1.0 + count*0.15).toFixed(2)}`;
     let cdRed = Math.min(50, count * 5); document.getElementById('stat-cd').innerText = `${cdRed}%`;
-    let spPredict = Math.floor(count * 1.5); document.getElementById('stat-drop').innerText = `${spPredict} SP`;
+    
+    // --- FIX: Cap SP display at 5 ---
+    let spPredict = Math.min(5, Math.floor(count * 1.5)); 
+    document.getElementById('stat-drop').innerText = `${spPredict} SP`;
+    
     let hasA = bossConfig.some(g => g.type === 'A'); let hasM = bossConfig.some(g => g.type === 'M');
     let btn = document.getElementById('btn-deploy');
     if (hasA && hasM) { btn.disabled = false; btn.classList.remove('opacity-50', 'cursor-not-allowed'); document.getElementById('design-error').innerText = ""; } 
