@@ -33,7 +33,8 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
 .btn-gold { background: #aa8800; border-color: #ffdd44; color: #fff; } .btn-danger { background: #550000; border-color: #aa0000; color: #fcc; }
 .btn-ink { background: #222; border-color: #888; color: #ccc; } .btn-convert { background: #005555; border-color: #00aaaa; color: #cff; }
 .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
-#char-tooltip { position: absolute; display: none; background: rgba(0,0,0,0.95); border: 1px solid #888; padding: 10px; border-radius: 4px; pointer-events: none; z-index: 9999; min-width: 180px; box-shadow: 0 4px 10px rgba(0,0,0,0.8); }
+/* ★修正: ツールチップのz-indexをチュートリアル(15000)より上に設定 */
+#char-tooltip { position: absolute; display: none; background: rgba(0,0,0,0.95); border: 1px solid #888; padding: 10px; border-radius: 4px; pointer-events: none; z-index: 20002; min-width: 180px; box-shadow: 0 4px 10px rgba(0,0,0,0.8); }
 .tooltip-title { font-size: 16px; font-weight: bold; border-bottom: 1px solid #444; margin-bottom: 5px; } .tooltip-stat span { color: #4f4; font-weight: bold; }
 .modal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 50; }
 .convert-options { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 300px; } .convert-btn { width: 90px; height: 70px; font-size: 16px; }
@@ -140,12 +141,15 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
     left: 50%; top: calc(15% - 15px); transform: translateX(-50%); 
     transition: top 0.3s ease;
 }
+/* ★修正: SKIPボタンの視認性を向上 */
 #tutorial-skip {
     position: absolute; top: 10px; right: 10px; 
-    /* ★修正: Z-indexをさらに上げて、メッセージボックスが上に来ても押せるように */
     z-index: 16000; pointer-events: auto;
-    padding: 4px 8px; font-size: 12px;
+    padding: 10px 20px; font-size: 16px; font-weight: bold; /* サイズアップ */
+    background: rgba(0,0,0,0.8); border: 2px solid #666; color: #ccc; border-radius: 6px;
 }
+#tutorial-skip:hover { background: rgba(50,50,50,0.9); color: white; border-color: #888; }
+
 /* ★視認性向上のためのハイライト修正: z-indexを上げて明るい発光を追加 */
 .tut-highlight {
     position: relative; z-index: 15001 !important; 
@@ -170,7 +174,7 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
 </head>
 <body class="layout-lab">
 <div id="tutorial-overlay">
-    <button id="tutorial-skip" class="btn btn-ink" onclick="tutorial.skip()">SKIP</button>
+    <button id="tutorial-skip" class="btn" onclick="tutorial.skip()">SKIP</button>
     <div id="tutorial-box"><div id="tutorial-msg"></div><button id="tutorial-next" class="btn btn-primary mt-2" onclick="tutorial.nextStep()">OK</button></div>
 </div>
 
@@ -240,8 +244,8 @@ canvas { background: linear-gradient(to bottom, #2d2d2d, #1a1a1a); width: 100%; 
                     <span class="text-sm mr-2 text-gray-300">墨汁: <span id="bokuju-display" class="font-bold text-white">0</span></span>
                     <span class="text-sm mr-2 text-yellow-400 font-bold">SP: <span id="sp-display">0</span></span>
                     
-                    <!-- ★追加: 設定ボタン -->
-                    <button class="btn btn-ink text-lg px-2 py-1" onclick="document.getElementById('settings-modal').style.display='flex'">??</button>
+                    <!-- ★修正: 設定ボタンの文字化けを修正 -->
+                    <button class="btn btn-ink text-sm px-3 py-2 font-bold" onclick="document.getElementById('settings-modal').style.display='flex'">設定</button>
                     
                     <button id="btn-sortie" class="btn btn-primary px-4 py-2" onclick="app.startBattle()">出撃！</button>
                 </div>
@@ -442,6 +446,8 @@ var TutorialSystem = class {
             { text: "文字化け大戦へようこそ！\nまずは基本操作です。\nここのボタンで文字の種類を変えたり売却して墨汁を得ることができます。", target: "#char-action-btns", trigger: "next_step" },
             { text: "では、錬成を始めましょう。\n使いたい漢字をタップしてスロットに入れてください。", target: "#char-inventory", trigger: "add_char" },
             { text: "いいですね！漢字は2つ以上組み合わせる必要があります。\nもう一つ漢字を選んでください。", target: "#char-inventory", trigger: "add_char_2" },
+            // ★追加: ステータス予測の説明ステップ
+            { text: "漢字の組み合わせによって、ステータスが変化します。\nここを見て、どんなユニットができるか予測を確認しましょう！", target: "#preview-stats", trigger: "next_step" },
             { text: "準備ができました！\n「錬成完了」ボタンを押して、新しいユニットを生み出しましょう！", target: "#btn-synthesize", trigger: "synthesize" },
             { text: "錬成成功！\n作ったユニットを確認するために、「編成」タブに切り替えましょう。", target: ".tab-container button:nth-child(2)", trigger: "switch_tab" },
             { text: "リストに新しく作られたユニットが追加されています。\nクリックして詳細を確認しましょう。", target: ".unit-storage-list", trigger: "select_unit" },
@@ -677,7 +683,7 @@ var Unit = class {
     }
     upd(g) {
         if(this.dead)return;
-        if(this.pt>0){this.pt--;if(this.pt%60===0){this.tkDmg(Math.ceil(this.maxHp*0.05),g,true);g.parts.push(new TxtP(this.x,this.y-50,"毒","#a0a",0.8));}}
+        if(this.pt>0){this.pt--;if(this.pt%60===0){this.tkDmg(Math.ceil(this.maxHp*0.05),g,true);g.parts.push(new TxtP(this.x,u.y-40,`+${this.kBon}`,'#0ff',0.8));}}
         if(this.weakenTime>0) this.weakenTime--;
         if(this.st>0){this.st--;this.state='IDLE';return;}
         if(this.kbS>0){this.kbS--;this.x+=this.kbV;this.kbV*=0.9;this.state='KB';if(this.kbS<=0)this.state='WALK';return;}
