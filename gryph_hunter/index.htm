@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Glyph Boss Hunter - Sound Edition v4</title>
+    <title>Glyph Boss Hunter - Sound Edition v7</title>
     <!-- p5.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
     <!-- Tailwind CSS -->
@@ -307,16 +307,18 @@
 
 <script>
 /**
- * GLYPH BOSS HUNTER - Sound Edition v4
+ * GLYPH BOSS HUNTER - Sound Edition v7
  * Features:
- * - Removed Warning Sound
- * - Fix Hover Sound (mouseenter only)
- * - Restored missing Update functions
+ * - NO FALLBACK AUDIO (Silent if file missing)
+ * - External File: 'digilune.mp3'
  */
 
 // --- SOUND ASSET CONFIGURATION ---
 const SOUND_PATHS = {
+    // Only loads if file exists in same directory
     bgm_design: 'digilune.mp3', 
+    
+    // Default base64 placeholders for other sounds (can be replaced with filenames)
     bgm_battle: 'remote.mp3', 
     shoot: 'data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YWtvT1AAAAAAAAAAAAAAAACAgICAAAAAgIAAAACAgAAAAICAAACAgIAAAICAgADAwMAAAADAwAAAAMDAAAAAgIA=',
     boss_shoot: 'data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YWtvT1AAAAAAAAAAAAAAAACAgICAAAAAgIAAAACAgAAAAICAAACAgIAAAICAgADAwMAAAADAwAAAAMDAAAAAgIA=',
@@ -354,10 +356,14 @@ const SoundManager = {
         for (const [key, path] of Object.entries(SOUND_PATHS)) {
             try {
                 const response = await fetch(path);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const arrayBuffer = await response.arrayBuffer();
                 const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
                 this.buffers[key] = audioBuffer;
-            } catch (e) {}
+            } catch (e) {
+                // NO FALLBACK - Just log error
+                console.warn(`Failed to load sound "${key}". It will be silent.`);
+            }
         }
     },
 
@@ -366,10 +372,12 @@ const SoundManager = {
         if (this.bgmSource && this.currentBGMKey === key) return;
         this.stopBGM();
         this.currentBGMKey = key;
+        
+        // NO FALLBACK - if buffer missing, return
         if (!this.buffers[key] || this.buffers[key].length < 1000) {
-             this.startFallbackBGM(key);
              return;
         }
+        
         this.bgmSource = this.ctx.createBufferSource();
         this.bgmSource.buffer = this.buffers[key];
         this.bgmSource.loop = true;
@@ -377,30 +385,6 @@ const SoundManager = {
         this.bgmSource.start(0);
     },
     
-    startFallbackBGM: function(key) {
-        if(this.bgmSource) { try{this.bgmSource.stop();}catch(e){} }
-        const osc = this.ctx.createOscillator();
-        const lfo = this.ctx.createOscillator();
-        const lfoGain = this.ctx.createGain();
-        if (key === 'bgm_battle') {
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(80, this.ctx.currentTime);
-            lfo.frequency.value = 8;
-            lfoGain.gain.value = 20;
-        } else {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(50, this.ctx.currentTime);
-            lfo.frequency.value = 0.2;
-            lfoGain.gain.value = 500;
-        }
-        lfo.connect(lfoGain);
-        lfoGain.connect(osc.frequency);
-        osc.connect(this.bgmGain);
-        lfo.start();
-        osc.start();
-        this.bgmSource = osc; 
-    },
-
     stopBGM: function() {
         if (this.bgmSource) {
             try { this.bgmSource.stop(); } catch(e) {}
@@ -411,80 +395,15 @@ const SoundManager = {
 
     playSE: function(key) {
         if (!this.ctx) return;
+        // NO FALLBACK - if buffer missing, return
         if (this.buffers[key] && this.buffers[key].length > 1000) { 
              const source = this.ctx.createBufferSource();
              source.buffer = this.buffers[key];
              source.connect(this.seGain);
              source.start(0);
-             return;
         }
-        this.playFallbackSE(key);
     },
     
-    playFallbackSE: function(type) {
-        const now = this.ctx.currentTime;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        gain.connect(this.seGain);
-
-        if (type === 'shoot') {
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(880, now);
-            osc.frequency.exponentialRampToValueAtTime(110, now + 0.1);
-            gain.gain.setValueAtTime(0.5, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-            osc.start(now);
-            osc.stop(now + 0.1);
-        } else if (type === 'boss_shoot') {
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(220, now);
-            osc.frequency.exponentialRampToValueAtTime(55, now + 0.3);
-            gain.gain.setValueAtTime(0.3, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-            osc.start(now);
-            osc.stop(now + 0.3);
-        } else if (type === 'boom') {
-            const bufferSize = this.ctx.sampleRate * 0.5; 
-            const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-            const data = buffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-            const noise = this.ctx.createBufferSource();
-            noise.buffer = buffer;
-            const filter = this.ctx.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.value = 1000;
-            noise.connect(filter);
-            filter.connect(gain);
-            gain.gain.setValueAtTime(0.8, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
-            noise.start(now);
-        } else if (type === 'hit') {
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(150, now);
-            osc.frequency.linearRampToValueAtTime(100, now + 0.1);
-            gain.gain.setValueAtTime(0.5, now);
-            gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
-            osc.start(now);
-            osc.stop(now + 0.1);
-        } else if (type === 'ui') {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(1200, now);
-            gain.gain.setValueAtTime(0.2, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
-            osc.start(now);
-            osc.stop(now + 0.05);
-        } else if (type === 'powerup') {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(440, now);
-            osc.frequency.linearRampToValueAtTime(880, now + 0.1);
-            gain.gain.setValueAtTime(0.3, now);
-            gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
-            osc.start(now);
-            osc.stop(now + 0.2);
-        }
-        osc.connect(gain);
-    },
-
     setBGMVolume: function(val) {
         this.bgmVolume = parseFloat(val);
         if(this.bgmGain) this.bgmGain.gain.value = this.bgmVolume;
@@ -624,7 +543,6 @@ function getGlyphById(id) {
 }
 
 function showTooltip(text, x, y, title, type) {
-    // playSound('ui'); // REMOVED: Sound on hover handled by mouseenter
     let tt = document.getElementById('global-tooltip');
     tt.innerHTML = `<span class="tt-title">${title} <span class="tt-type">[${type}]</span></span>${text}`;
     tt.style.display = 'block';
@@ -1921,5 +1839,3 @@ function retryGame() {
 </script>
 </body>
 </html>
-
-
