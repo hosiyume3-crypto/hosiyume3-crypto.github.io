@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Glyph Boss Hunter - Sound Refactored</title>
+    <title>Glyph Boss Hunter - Sound Edition v8</title>
     <!-- p5.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
     <!-- Tailwind CSS -->
@@ -95,6 +95,7 @@
         .glyph-S { color: #d94dff; border-color: rgba(217, 77, 255, 0.5); } 
         .glyph-F { color: #ffaa4d; border-color: rgba(255, 170, 77, 0.5); }
 
+        /* Slot Bar Styles */
         .slot-bar-container { margin-bottom: 8px; }
         .slot-bar-label { font-size: 10px; font-weight: bold; margin-bottom: 2px; padding-left: 4px; display: flex; justify-content: space-between; text-shadow: 0 0 2px currentColor; }
         .slot-bar { 
@@ -306,29 +307,20 @@
 
 <script>
 /**
- * GLYPH BOSS HUNTER - Sound Edition v7
+ * GLYPH BOSS HUNTER - Sound Edition v8
  * Features:
- * - REBUILT BGM LOGIC: Dedicated BGM tracks, state management, silence on missing files.
- * - Same-directory pathing support.
+ * - SYNTHESIZED SE: Shoot, Boss Shoot, Boom, Hit are procedurally generated (No files needed for SE).
+ * - BGM: External files (digilune.mp3) with fallbacks.
+ * - Triggers: BGM starts on LOGIN.
  */
 
-// --- BGM ASSET CONFIGURATION (Change filenames here) ---
+// --- BGM ASSET CONFIGURATION ---
 const BGM_ASSETS = {
-    design: 'digilune.mp3', // Menu/Design Screen BGM
-    battle: 'remote.mp3'    // Battle Screen BGM
+    design: 'digilune.mp3', // External file
+    battle: 'remote.mp3'    // External file
 };
 
-// --- SE ASSET CONFIGURATION ---
-const SE_ASSETS = {
-    shoot: 'data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YWtvT1AAAAAAAAAAAAAAAACAgICAAAAAgIAAAACAgAAAAICAAACAgIAAAICAgADAwMAAAADAwAAAAMDAAAAAgIA=',
-    boss_shoot: 'data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YWtvT1AAAAAAAAAAAAAAAACAgICAAAAAgIAAAACAgAAAAICAAACAgIAAAICAgADAwMAAAADAwAAAAMDAAAAAgIA=',
-    boom: 'data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YWtvT1AAAAAAAAAAAAAAAACAgICAAAAAgIAAAACAgAAAAICAAACAgIAAAICAgADAwMAAAADAwAAAAMDAAAAAgIA=',
-    hit: 'data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YWtvT1AAAAAAAAAAAAAAAACAgICAAAAAgIAAAACAgAAAAICAAACAgIAAAICAgADAwMAAAADAwAAAAMDAAAAAgIA=',
-    ui: 'data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YWtvT1AAAAAAAAAAAAAAAACAgICAAAAAgIAAAACAgAAAAICAAACAgIAAAICAgADAwMAAAADAwAAAAMDAAAAAgIA=',
-    powerup: 'data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YWtvT1AAAAAAAAAAAAAAAACAgICAAAAAgIAAAACAgAAAAICAAACAgIAAAICAgADAwMAAAADAwAAAAMDAAAAAgIA='
-};
-
-// --- SOUND MANAGER (REBUILT) ---
+// --- SOUND MANAGER ---
 const SoundManager = {
     ctx: null,
     bgmGain: null,
@@ -338,7 +330,6 @@ const SoundManager = {
     currentBgmSource: null,
     currentBgmKey: null,
     bgmBuffers: {},
-    seBuffers: {},
     
     // Config
     bgmVolume: 0.3,
@@ -349,7 +340,6 @@ const SoundManager = {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         this.ctx = new AudioContext();
         
-        // Create Gain Nodes
         this.bgmGain = this.ctx.createGain();
         this.bgmGain.gain.value = this.bgmVolume;
         this.bgmGain.connect(this.ctx.destination);
@@ -362,50 +352,34 @@ const SoundManager = {
     },
     
     loadAssets: async function() {
-        // Load BGM
+        // Load BGM only
         for (const [key, path] of Object.entries(BGM_ASSETS)) {
             try {
                 const res = await fetch(path);
                 if (res.ok) {
                     const buf = await res.arrayBuffer();
                     this.bgmBuffers[key] = await this.ctx.decodeAudioData(buf);
-                } else {
-                    console.warn(`BGM Load Failed: ${path}`);
                 }
             } catch (e) {
-                console.warn(`BGM Load Error: ${path}`, e);
+                console.warn(`BGM Load Skipped: ${path} (Will be silent)`);
             }
-        }
-        // Load SE
-        for (const [key, path] of Object.entries(SE_ASSETS)) {
-            try {
-                const res = await fetch(path);
-                if (res.ok) {
-                    const buf = await res.arrayBuffer();
-                    this.seBuffers[key] = await this.ctx.decodeAudioData(buf);
-                }
-            } catch (e) {}
         }
     },
 
     playBGM: function(key) {
         if (!this.ctx) return;
         
-        // If same BGM requested, do nothing
         if (this.currentBgmKey === key && this.currentBgmSource) return;
-        
-        // Stop current
         this.stopBGM();
         
         const buffer = this.bgmBuffers[key];
-        if (!buffer) return; // Silent if not loaded
+        if (!buffer) return; // Silent if file not found
         
         this.currentBgmKey = key;
         const source = this.ctx.createBufferSource();
         source.buffer = buffer;
         source.loop = true;
         
-        // Simple fade-in to prevent pop
         this.bgmGain.gain.cancelScheduledValues(this.ctx.currentTime);
         this.bgmGain.gain.setValueAtTime(0, this.ctx.currentTime);
         this.bgmGain.gain.linearRampToValueAtTime(this.bgmVolume, this.ctx.currentTime + 0.5);
@@ -417,24 +391,115 @@ const SoundManager = {
     
     stopBGM: function() {
         if (this.currentBgmSource) {
-            try {
-                // Fade out before stop
-                // Note: immediate stop for simplicity in this version, or manage fade
-                this.currentBgmSource.stop();
-            } catch(e) {}
+            try { this.currentBgmSource.stop(); } catch(e) {}
             this.currentBgmSource = null;
             this.currentBgmKey = null;
         }
     },
 
+    // --- SYNTHESIZER FOR SE ---
     playSE: function(key) {
-        if (!this.ctx || !this.seBuffers[key]) return;
+        if (!this.ctx) return;
         
-        // Overlap allowed for SE
-        const source = this.ctx.createBufferSource();
-        source.buffer = this.seBuffers[key];
-        source.connect(this.seGain);
-        source.start(0);
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        gain.connect(this.seGain);
+        
+        if (key === 'shoot') {
+            // Player Shoot: High Square/Triangle (Pew!)
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(880, t);
+            osc.frequency.exponentialRampToValueAtTime(110, t + 0.15);
+            gain.gain.setValueAtTime(0.3, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+            osc.connect(gain);
+            osc.start(t);
+            osc.stop(t + 0.15);
+            
+        } else if (key === 'boss_shoot') {
+            // Boss Shoot: Lower Sawtooth (Zyun!)
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(220, t);
+            osc.frequency.exponentialRampToValueAtTime(55, t + 0.3);
+            gain.gain.setValueAtTime(0.3, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+            osc.connect(gain);
+            osc.start(t);
+            osc.stop(t + 0.3);
+            
+        } else if (key === 'boom') {
+            // Explosion: Noise buffer
+            const duration = 0.4;
+            const bufferSize = this.ctx.sampleRate * duration;
+            const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1);
+            
+            const noise = this.ctx.createBufferSource();
+            noise.buffer = buffer;
+            
+            // Lowpass filter for "Boom" sound
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(800, t);
+            filter.frequency.exponentialRampToValueAtTime(100, t + duration);
+            
+            noise.connect(filter);
+            filter.connect(gain);
+            
+            gain.gain.setValueAtTime(0.8, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + duration);
+            noise.start(t);
+            
+        } else if (key === 'hit') {
+            // Damage: Short noise + high square (Crunch)
+            // 1. Noise
+            const duration = 0.1;
+            const bufferSize = this.ctx.sampleRate * duration;
+            const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1);
+            const noise = this.ctx.createBufferSource();
+            noise.buffer = buffer;
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'highpass';
+            filter.frequency.value = 1000;
+            noise.connect(filter);
+            filter.connect(gain);
+            noise.start(t);
+            
+            // 2. Square tone
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, t);
+            osc.frequency.linearRampToValueAtTime(100, t + 0.1);
+            gain.gain.setValueAtTime(0.5, t);
+            gain.gain.linearRampToValueAtTime(0.01, t + 0.1);
+            osc.connect(gain);
+            osc.start(t);
+            osc.stop(t + 0.1);
+            
+        } else if (key === 'ui') {
+            // UI: Gentle sine blip
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(1200, t);
+            gain.gain.setValueAtTime(0.1, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
+            osc.connect(gain);
+            osc.start(t);
+            osc.stop(t + 0.05);
+            
+        } else if (key === 'powerup') {
+            // Powerup: Ascending sine
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(440, t);
+            osc.frequency.linearRampToValueAtTime(880, t + 0.15);
+            gain.gain.setValueAtTime(0.2, t);
+            gain.gain.linearRampToValueAtTime(0.01, t + 0.15);
+            osc.connect(gain);
+            osc.start(t);
+            osc.stop(t + 0.15);
+        }
     },
     
     setBGMVolume: function(val) {
@@ -451,7 +516,6 @@ const SoundManager = {
     }
 };
 
-// Global Interface
 function updateBGMVolume(val) { SoundManager.setBGMVolume(val); }
 function updateSEVolume(val) { SoundManager.setSEVolume(val); }
 function playSound(type) { SoundManager.playSE(type); }
@@ -1131,268 +1195,6 @@ function executeBossAttack(glyph, isDouble=false) {
     }
 }
 
-function executeBossMove(glyph) {
-    let speed = boss.isRaged ? 1.5 : 1.0;
-    if (glyph.id === 'm_chase') {
-        let d = dist(boss.x, boss.y, player.x, player.y);
-        if (d > 150) { boss.x = lerp(boss.x, player.x, 0.03 * speed); boss.y = lerp(boss.y, player.y, 0.03 * speed); }
-        else if (d < 130) { let a = atan2(boss.y-player.y, boss.x-player.x); boss.x += cos(a)*2; boss.y += sin(a)*2; }
-    } else if (glyph.id === 'm_random') {
-    } else if (glyph.id === 'm_dash') {
-        boss.x += boss.vx; boss.y += boss.vy;
-    } else if (glyph.id === 'm_trail') { 
-        boss.x += boss.vx * 0.5; boss.y += boss.vy * 0.5; 
-        if (frameCount % 12 === 0) {
-             createProjectile(boss.x, boss.y, random(-1,1), random(-1,1), 'BOSS', 6, 8, {type: 'MINE', timer: 60, friction: 0.9});
-        }
-    } else if (glyph.id === 'm_zigzag') {
-        let d = dist(boss.x, boss.y, player.x, player.y);
-        let angle = atan2(player.y - boss.y, player.x - boss.x);
-        angle += sin(frameCount * 0.1) * 0.8;
-        boss.x += cos(angle) * (speed * 3);
-        boss.y += sin(angle) * (speed * 3);
-    }
-}
-
-function executeBossField(glyph) {
-    if (glyph.id === 'f_bomb') {
-        let tx = player.x + random(-100, 100); let ty = player.y + random(-100, 100);
-        tx = constrain(tx, 50, width-50); ty = constrain(ty, 50, height-50);
-        fields.push({x: tx, y: ty, r: 80, type: 'f_bomb', life: 120, maxLife: 120});
-    } else if (glyph.id === 'f_rain') {
-        for(let i=0; i<3; i++) {
-            let tx = random(50, width-50); let ty = random(50, height-50);
-            fields.push({x: tx, y: ty, r: 60, type: 'f_bomb', life: 120 + i*20, maxLife: 120});
-        }
-    } else if (glyph.id === 'f_suction') {
-        let tx = random(100, width-100); let ty = random(100, height-100);
-        fields.push({x: tx, y: ty, r: 250, type: 'f_suction', life: 240, maxLife: 240});
-    } else if (glyph.id === 'f_geo_bomb') {
-        for(let i=0; i<2; i++) {
-            let tx = random(100, width-100); let ty = random(100, height-100);
-            let subtype = random() < 0.5 ? 'PLUS' : 'X';
-            fields.push({x: tx, y: ty, r: 40, type: 'f_geo_bomb', subtype: subtype, life: 100, maxLife: 100});
-        }
-    } else if (glyph.id === 'f_line_bomb') {
-        let x = random(50, width-50); let y = random(50, height-50);
-        fields.push({type: 'f_line_pre', axis: 'V', x: x, y: height/2, w: 60, h: height, life: 60, maxLife: 60});
-        fields.push({type: 'f_line_pre', axis: 'H', x: width/2, y: y, w: width, h: 60, life: 60, maxLife: 60});
-    }
-}
-function drawBoss() {
-    if (boss.state === 'VANISH_WAIT' || boss.state === 'VANISH_FALL' || boss.state === 'VANISH_LOCK') return;
-
-    push(); let drawColor = boss.isRaged ? COLORS.bossRage : COLORS.boss;
-    
-    if (boss.barrierActive) {
-        let alpha = map(boss.barrierHits, 0, 5, 50, 200);
-        noFill(); stroke(0, 100, 255, alpha); strokeWeight(3);
-        rectMode(CENTER);
-        push(); translate(boss.x, boss.y); rotate(frameCount * 0.05);
-        rect(0, 0, boss.size * 2.8, boss.size * 2.8);
-        for(let i=0; i<boss.barrierHits; i++) {
-             push(); rotate((TWO_PI/5)*i);
-             fill(0, 200, 255); noStroke();
-             ellipse(boss.size * 1.6, 0, 8, 8);
-             pop();
-        }
-        pop();
-    }
-
-    if (boss.hasFunnel) {
-        for(let f of boss.funnels) {
-            if (f.active) {
-                let fx = boss.x + cos(f.angle) * 60; let fy = boss.y + sin(f.angle) * 60;
-                fill('#0ff'); noStroke(); rectMode(CENTER);
-                push(); translate(fx, fy); rotate(f.angle); rect(0,0,15,15);
-                let fpct = f.hp / f.maxHp; fill(50); rect(0, -12, 16, 3); fill(0, 255, 0); rect(0 - 8 + 8*fpct, -12, 16*fpct, 3); pop();
-            }
-        }
-    }
-    
-    translate(boss.x, boss.y); 
-    
-    let hpW = 80; let hpH = 6;
-    noStroke(); fill(0, 0, 0, 150); rect(0, -boss.size - 20, hpW, hpH);
-    fill(boss.isRaged ? '#f00' : '#f0f'); 
-    let bossPct = Math.max(0, boss.hp / boss.maxHp);
-    rectMode(CORNER); rect(-hpW/2, -boss.size - 23, hpW * bossPct, hpH);
-    rectMode(CENTER);
-    
-    noFill(); stroke(drawColor); strokeWeight(2);
-    
-    push(); rotate(boss.drawRot);
-    rect(0, 0, boss.size, boss.size);
-    pop();
-
-    push(); rotate(-boss.drawRot * 0.5); 
-    strokeWeight(1); stroke(drawColor); 
-    rect(0, 0, boss.size * 1.4, boss.size * 1.4);
-    pop();
-
-    push(); rotate(boss.drawRot * 0.2);
-    let pulse = 1.0 + sin(frameCount * 0.1) * 0.1;
-    scale(pulse);
-    stroke(255, 100); strokeWeight(1);
-    rect(0, 0, boss.size * 1.8, boss.size * 1.8);
-    pop();
-
-    for(let i=0; i<4; i++) {
-        push(); rotate((TWO_PI/4)*i + boss.drawRot);
-        translate(boss.size, 0);
-        fill(drawColor); noStroke();
-        rect(0, 0, 8, 8);
-        pop();
-    }
-
-    if (boss.hasThorn) {
-        stroke('#f00'); strokeWeight(2);
-        for(let i=0; i<4; i++) { 
-            push(); rotate((TWO_PI/4)*i + boss.drawRot*2);
-            line(boss.size*0.6, 0, boss.size*1.5, 0);
-            pop();
-        }
-    }
-    if (boss.isRaged) { 
-        noFill(); stroke(255, 0, 0, 100 + sin(frameCount*0.5)*100); 
-        rect(0, 0, boss.size*2.2, boss.size*2.2); 
-    }
-    
-    pop();
-}
-
-function createProjectile(x, y, vx, vy, owner, size, dmg, behavior=null) { projectiles.push({ x, y, vx, vy, owner, size, dmg, behavior }); }
-function updateProjectiles() {
-    let suctionActive = false; 
-
-    for (let i = projectiles.length - 1; i >= 0; i--) {
-        let p = projectiles[i]; let remove = false;
-        if (p.behavior) {
-            if (p.behavior.type === 'HOMING') { 
-                let a = atan2(player.y-p.y, player.x-p.x); p.vx=lerp(p.vx,cos(a)*3,0.05); p.vy=lerp(p.vy,sin(a)*3,0.05); 
-                if(p.behavior.timer) { p.behavior.timer--; if(p.behavior.timer <= 0) remove = true; }
-            }
-            else if (p.behavior.type === 'SHOCKWAVE') { p.size+=6; p.behavior.life--; if(p.behavior.life<=0) remove=true; }
-            else if (p.behavior.type === 'FREEZE') {
-                if(p.behavior.state==='MOVING') { p.behavior.timer--; if(p.behavior.timer<=0) { p.behavior.state='STOPPED'; p.behavior.timer=40; p.savedVx = p.vx; p.savedVy = p.vy; p.vx = 0; p.vy = 0; } }
-                else if(p.behavior.state==='STOPPED') { p.behavior.timer--; if(p.behavior.timer<=0) { p.behavior.state='RESUME'; let a = atan2(player.y-p.y, player.x-p.x); p.vx=cos(a)*10; p.vy=sin(a)*10; } }
-            } else if (p.behavior.type === 'SPLIT') {
-                p.behavior.timer--; if(p.behavior.timer<=0) { remove=true; for(let k=0; k<6; k++) createProjectile(p.x, p.y, cos(TWO_PI/6*k)*6, sin(TWO_PI/6*k)*6, 'BOSS', 6, p.dmg*0.7); createExplosion(p.x, p.y, COLORS.bulletSplit, 5); }
-            } else if (p.behavior.type === 'SHOOTER_CUTTER') { 
-                p.behavior.timer--; 
-                let turnSpeed = 0.08; 
-                let currentAngle = atan2(p.vy, p.vx);
-                if (p.behavior.state === 'OUT') {
-                    currentAngle += turnSpeed;
-                    let speed = 10;
-                    p.vx = cos(currentAngle) * speed;
-                    p.vy = sin(currentAngle) * speed;
-                    if(p.behavior.timer <= 0) p.behavior.state = 'RETURN';
-                } else {
-                    let a = atan2(boss.y - p.y, boss.x - p.x);
-                    p.vx = lerp(p.vx, cos(a)*12, 0.1);
-                    p.vy = lerp(p.vy, sin(a)*12, 0.1);
-                    if(dist(p.x, p.y, boss.x, boss.y) < 30) remove = true;
-                }
-            } else if (p.behavior.type === 'BOOMERANG') {
-                p.behavior.timer--; if(p.behavior.timer<=0 && p.behavior.state === 'OUT') { p.behavior.state = 'RETURN'; p.vx *= -1; p.vy *= -1; }
-            } else if (p.behavior.type === 'CLUSTER') {
-                p.behavior.timer--; if(p.behavior.timer<=0) { remove=true; for(let k=0; k<8; k++) { let a = random(TWO_PI); createProjectile(p.x, p.y, cos(a)*5, sin(a)*5, 'BOSS', 5, p.dmg*0.5); } createExplosion(p.x, p.y, '#fa0', 5); }
-            } else if (p.behavior.type === 'ORBIT_SHOT') {
-                p.behavior.angle += 0.025; p.behavior.dist += 2.0; let cx = p.behavior.center.x; let cy = p.behavior.center.y;
-                p.x = cx + cos(p.behavior.angle) * p.behavior.dist; p.y = cy + sin(p.behavior.angle) * p.behavior.dist; continue; 
-            } else if (p.behavior.type === 'CHARGE_SHOT') {
-                p.behavior.timer++; p.vx *= 1.02; p.vy *= 1.02; p.size = Math.min(50, 15 + p.behavior.timer * 0.5);
-            } else if (p.behavior.type === 'MINE') {
-                p.vx *= p.behavior.friction; p.vy *= p.behavior.friction; 
-                p.behavior.timer--;
-                if(p.behavior.timer <= 0) {
-                    remove = true;
-                    fields.push({x: p.x, y: p.y, r: 60, type: 'f_bomb', life: 80, maxLife: 80});
-                    createExplosion(p.x, p.y, '#fa0', 10);
-                }
-            }
-            else if (p.behavior.type === 'IMPLODE') {
-                suctionActive = true;
-                let tx = p.behavior.target.x; let ty = p.behavior.target.y;
-                let a = atan2(ty - p.y, tx - p.x);
-                let spd = p.behavior.speed; 
-                p.vx = cos(a) * spd; p.vy = sin(a) * spd;
-                if (dist(p.x, p.y, tx, ty) < 15) remove = true; 
-            }
-        }
-        if(!remove) {
-            p.x += p.vx; p.y += p.vy;
-            if (p.behavior && p.behavior.type === 'BOUNCE') { let b=false; if(p.x<0||p.x>width){p.vx*=-1;b=true;} if(p.y<0||p.y>height){p.vy*=-1;b=true;} if(b){p.behavior.bounces--; if(p.behavior.bounces<=0)p.behavior=null;} }
-            else if (p.x<0||p.x>width||p.y<0||p.y>height) {
-                if (!p.behavior || (p.behavior.type !== 'IMPLODE' && p.behavior.type !== 'TRACE')) remove=true;
-            }
-        }
-        if(remove) projectiles.splice(i, 1);
-    }
-    if (suctionActive) {
-        let angle = atan2(boss.y - player.y, boss.x - player.x);
-        let suctionForce = 1.5;
-        player.x += cos(angle) * suctionForce;
-        player.y += sin(angle) * suctionForce;
-        if (frameCount % 4 === 0) {
-             let spawnAngle = random(TWO_PI);
-             let dist = random(100, 300);
-             let px = boss.x + cos(spawnAngle) * dist;
-             let py = boss.y + sin(spawnAngle) * dist;
-             createParticle(px, py, '#a0f', 'suction_part', 3);
-        }
-    }
-}
-
-function drawProjectiles() {
-    noStroke();
-    for (let p of projectiles) {
-        if (p.owner === 'PLAYER') fill(COLORS.bulletPlayer);
-        else if (p.behavior) {
-            if (p.behavior.type === 'HOMING') fill(COLORS.bulletHoming);
-            else if (p.behavior.type === 'BOUNCE') fill(COLORS.bulletRicochet);
-            else if (p.behavior.type === 'FREEZE') fill(COLORS.bulletFreeze);
-            else if (p.behavior.type === 'SPLIT' || p.behavior.type === 'CLUSTER') fill(COLORS.bulletSplit);
-            else if (p.behavior.type === 'SHOCKWAVE') { noFill(); stroke(COLORS.bulletBoss); strokeWeight(4); ellipse(p.x, p.y, p.size, p.size); continue; }
-            else if (p.behavior.type === 'ORBIT_SHOT') fill('#0ff');
-            else if (p.behavior.type === 'CHARGE_SHOT') fill('#f00');
-            else if (p.behavior.type === 'SHOOTER_CUTTER') {
-                push(); translate(p.x, p.y); 
-                rotate(frameCount * 0.5); 
-                noFill(); stroke('#f0f'); strokeWeight(2);
-                triangle(0, -10, 8, 5, -8, 5); 
-                pop();
-                continue;
-            }
-            else if (p.behavior.type === 'MINE') {
-                let flash = Math.floor(frameCount / 10) % 2 === 0;
-                fill(flash ? '#ff0' : '#840'); ellipse(p.x, p.y, p.size, p.size);
-                continue;
-            }
-            else if (p.behavior.type === 'LASER_BEAM') {
-                push(); translate(p.x, p.y); rotate(atan2(p.vy, p.vx));
-                fill(255, 0, 0); rect(-20, -5, 40, 10);
-                pop();
-                continue;
-            }
-            else if (p.behavior.type === 'LASER_BEAM_ROT') { 
-                p.behavior.angle += 0.05;
-                push(); translate(p.x, p.y); rotate(p.behavior.angle);
-                fill(255, 0, 0, 150); rect(0, -10, 1000, 20); 
-                pop();
-                continue;
-            }
-            else if (p.behavior.type === 'IMPLODE') {
-                fill('#aaf');
-            }
-            else fill(COLORS.bulletBoss);
-        } else fill(COLORS.bulletBoss);
-        ellipse(p.x, p.y, p.size, p.size);
-    }
-}
-
-// --- RESTORED MISSING FUNCTIONS ---
 function updateFields() {
     for (let i = fields.length - 1; i >= 0; i--) {
         fields[i].life--;
@@ -1780,7 +1582,7 @@ function setupLootPhase() {
             }
         };
         span.onmousemove = (e) => showTooltip(d.desc, e.clientX, e.clientY, d.name, d.type);
-        span.onmouseenter = () => playSound('ui'); // FIXED: Sound on enter
+        span.onmouseenter = () => playSound('ui'); 
         span.onmouseleave = () => hideTooltip(); div.appendChild(span);
     });
 }
@@ -1822,7 +1624,7 @@ function updateDesignUI() {
         if(isSet) div.innerHTML += '<div class="equipped-badge">SET</div>';
         div.onclick = () => { playSound('ui'); bossConfig.push(item); updateDesignUI(); };
         div.onmousemove = (e) => showTooltip(item.desc, e.clientX, e.clientY, item.name, item.type);
-        div.onmouseenter = () => playSound('ui'); // FIXED: Sound on enter
+        div.onmouseenter = () => playSound('ui'); 
         div.onmouseleave = () => hideTooltip(); invDiv.appendChild(div);
     });
     
@@ -1841,7 +1643,7 @@ function updateDesignUI() {
             div.innerHTML = `<div class="font-bold text-lg">${item.type}</div><div class="absolute top-0 right-0 text-red-500 font-bold text-[8px] leading-none p-0.5 cursor-pointer">×</div>`;
             div.onclick = () => { playSound('ui'); bossConfig.splice(idx, 1); updateDesignUI(); };
             div.onmousemove = (e) => showTooltip(item.desc, e.clientX, e.clientY, item.name, item.type);
-            div.onmouseenter = () => playSound('ui'); // FIXED: Sound on enter
+            div.onmouseenter = () => playSound('ui'); 
             div.onmouseleave = () => hideTooltip(); 
             targetContainer.appendChild(div);
         }
