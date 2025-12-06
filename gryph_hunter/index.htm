@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Glyph Boss Hunter - Performance Tuned</title>
+    <title>Glyph Boss Hunter - Sound Edition v4</title>
     <!-- p5.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
-    <!-- Tailwind CSS for UI Overlay -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { 
@@ -22,7 +22,6 @@
             width: 100vw;
         }
         
-        /* Game Container: Keeps 16:9 aspect ratio */
         #game-container {
             position: relative;
             background-color: #050505;
@@ -32,7 +31,6 @@
 
         canvas { display: block; position: absolute; top: 0; left: 0; z-index: 0; }
         
-        /* UI Overlay Styles */
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         .interactive { pointer-events: auto; }
         
@@ -93,13 +91,9 @@
         }
         
         .glyph-A { color: #ff4d4d; border-color: rgba(255, 77, 77, 0.5); } 
-        .glyph-A:hover { border-color: #ff4d4d; box-shadow: 0 0 10px #ff4d4d; }
         .glyph-M { color: #4dff88; border-color: rgba(77, 255, 136, 0.5); } 
-        .glyph-M:hover { border-color: #4dff88; box-shadow: 0 0 10px #4dff88; }
         .glyph-S { color: #d94dff; border-color: rgba(217, 77, 255, 0.5); } 
-        .glyph-S:hover { border-color: #d94dff; box-shadow: 0 0 10px #d94dff; }
         .glyph-F { color: #ffaa4d; border-color: rgba(255, 170, 77, 0.5); }
-        .glyph-F:hover { border-color: #ffaa4d; box-shadow: 0 0 10px #ffaa4d; }
 
         /* Slot Bar Styles */
         .slot-bar-container { margin-bottom: 8px; }
@@ -141,6 +135,36 @@
         .screen { display: none; width: 85%; max-width: 1100px; max-height: 90vh; overflow-y: auto; padding: 20px; background: rgba(5, 5, 10, 0.95); border: 1px solid #333; box-shadow: 0 0 30px rgba(0,0,0,0.8); }
         .screen.active { display: flex; flex-direction: column; }
         .neon-box { border: 1px solid #0ff; box-shadow: 0 0 10px rgba(0, 255, 255, 0.1), inset 0 0 20px rgba(0, 255, 255, 0.05); }
+
+        /* Audio Settings Panel */
+        .audio-controls-container {
+            position: absolute; top: 10px; right: 10px; z-index: 50;
+            display: flex; flex-direction: column; align-items: flex-end;
+        }
+        .btn-audio {
+            background: rgba(0, 0, 0, 0.8); color: #0ff;
+            border: 1px solid #0ff; padding: 4px 10px;
+            font-family: monospace; font-size: 12px; cursor: pointer;
+            box-shadow: 0 0 5px rgba(0, 255, 255, 0.3);
+            margin-bottom: 4px;
+        }
+        .btn-audio:hover { background: rgba(0, 50, 50, 0.8); }
+
+        .audio-settings-panel {
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid #334155;
+            padding: 12px;
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            gap: 8px;
+            box-shadow: 0 0 20px rgba(0,0,0,1);
+            min-width: 180px;
+        }
+        .audio-settings-panel.active { display: flex; }
+        .vol-row { display: flex; align-items: center; gap: 8px; font-size: 10px; color: #0ff; }
+        .vol-row label { width: 30px; font-weight: bold; text-align: right; }
+        .vol-slider { flex-grow: 1; accent-color: #0ff; cursor: pointer; height: 4px; }
+        .panel-header { font-size: 10px; color: #888; border-bottom: 1px solid #333; margin-bottom: 4px; padding-bottom: 2px;}
     </style>
 </head>
 <body>
@@ -148,8 +172,8 @@
     <div id="global-tooltip"></div>
 
     <div id="game-container">
-        <!-- Canvas will be injected here by p5.js -->
-        
+        <!-- Canvas injected here -->
+
         <div id="hud" style="display:none;">
             <div class="text-xs text-cyan-600 font-bold tracking-widest">PLAYER STATUS</div>
             <div class="bar-container">
@@ -184,12 +208,28 @@
                 </div>
                 <br><br>
                 <button onclick="startGame()" class="mt-4 px-10 py-4 bg-cyan-900 hover:bg-cyan-700 text-white font-bold tracking-widest border border-cyan-400 shadow-[0_0_20px_rgba(0,255,255,0.3)] transition-all hover:shadow-[0_0_40px_rgba(0,255,255,0.6)]">
-                    LOGIN
+                    LOGIN (SOUND ON)
                 </button>
             </div>
 
             <!-- BOSS DESIGN SCREEN -->
-            <div id="screen-design" class="screen interactive neon-box">
+            <div id="screen-design" class="screen interactive neon-box relative">
+                <!-- AUDIO SETTINGS BUTTON & PANEL -->
+                <div class="audio-controls-container">
+                    <button class="btn-audio" onclick="toggleAudioPanel()">[ AUDIO ]</button>
+                    <div id="audio-panel" class="audio-settings-panel">
+                        <div class="panel-header">SOUND CONFIG</div>
+                        <div class="vol-row">
+                            <label>BGM</label>
+                            <input type="range" class="vol-slider" min="0" max="1" step="0.1" value="0.3" oninput="updateBGMVolume(this.value)">
+                        </div>
+                        <div class="vol-row">
+                            <label>SE</label>
+                            <input type="range" class="vol-slider" min="0" max="1" step="0.1" value="0.4" oninput="updateSEVolume(this.value)">
+                        </div>
+                    </div>
+                </div>
+
                 <h2 class="text-2xl font-bold mb-2 text-cyan-400 border-b border-cyan-900 pb-2 flex justify-between font-mono">
                     <span>// BOSS_ARCHITECT</span>
                     <span class="text-sm text-gray-400 self-end">SP: <span id="current-sp-display" class="text-yellow-400 font-bold">0</span></span>
@@ -267,11 +307,206 @@
 
 <script>
 /**
- * GLYPH BOSS HUNTER - PERFORMANCE & TUNED
+ * GLYPH BOSS HUNTER - Sound Edition v4
+ * Features:
+ * - Removed Warning Sound
+ * - Fix Hover Sound (mouseenter only)
+ * - Restored missing Update functions
  */
 
+// --- SOUND ASSET CONFIGURATION ---
+const SOUND_PATHS = {
+    bgm_design: 'sounds/digilune.mp3', 
+    bgm_battle: 'data:audio/wav;base64,UklGRjQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=', 
+    shoot: 'data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YWtvT1AAAAAAAAAAAAAAAACAgICAAAAAgIAAAACAgAAAAICAAACAgIAAAICAgADAwMAAAADAwAAAAMDAAAAAgIA=',
+    boss_shoot: 'data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YWtvT1AAAAAAAAAAAAAAAACAgICAAAAAgIAAAACAgAAAAICAAACAgIAAAICAgADAwMAAAADAwAAAAMDAAAAAgIA=',
+    boom: 'data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YWtvT1AAAAAAAAAAAAAAAACAgICAAAAAgIAAAACAgAAAAICAAACAgIAAAICAgADAwMAAAADAwAAAAMDAAAAAgIA=',
+    hit: 'data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YWtvT1AAAAAAAAAAAAAAAACAgICAAAAAgIAAAACAgAAAAICAAACAgIAAAICAgADAwMAAAADAwAAAAMDAAAAAgIA=',
+    ui: 'data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YWtvT1AAAAAAAAAAAAAAAACAgICAAAAAgIAAAACAgAAAAICAAACAgIAAAICAgADAwMAAAADAwAAAAMDAAAAAgIA=',
+    powerup: 'data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YWtvT1AAAAAAAAAAAAAAAACAgICAAAAAgIAAAACAgAAAAICAAACAgIAAAICAgADAwMAAAADAwAAAAMDAAAAAgIA='
+};
+
+// --- SOUND MANAGER ---
+const SoundManager = {
+    ctx: null,
+    bgmGain: null,
+    seGain: null,
+    bgmSource: null,
+    currentBGMKey: null,
+    buffers: {},
+    bgmVolume: 0.3,
+    seVolume: 0.4,
+    
+    init: function() {
+        if (this.ctx) return;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        this.ctx = new AudioContext();
+        this.bgmGain = this.ctx.createGain();
+        this.bgmGain.gain.value = this.bgmVolume;
+        this.bgmGain.connect(this.ctx.destination);
+        this.seGain = this.ctx.createGain();
+        this.seGain.gain.value = this.seVolume;
+        this.seGain.connect(this.ctx.destination);
+        this.loadAllSounds();
+    },
+    
+    loadAllSounds: async function() {
+        for (const [key, path] of Object.entries(SOUND_PATHS)) {
+            try {
+                const response = await fetch(path);
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+                this.buffers[key] = audioBuffer;
+            } catch (e) {}
+        }
+    },
+
+    playBGM: function(key) {
+        if (!this.ctx) return;
+        if (this.bgmSource && this.currentBGMKey === key) return;
+        this.stopBGM();
+        this.currentBGMKey = key;
+        if (!this.buffers[key] || this.buffers[key].length < 1000) {
+             this.startFallbackBGM(key);
+             return;
+        }
+        this.bgmSource = this.ctx.createBufferSource();
+        this.bgmSource.buffer = this.buffers[key];
+        this.bgmSource.loop = true;
+        this.bgmSource.connect(this.bgmGain);
+        this.bgmSource.start(0);
+    },
+    
+    startFallbackBGM: function(key) {
+        if(this.bgmSource) { try{this.bgmSource.stop();}catch(e){} }
+        const osc = this.ctx.createOscillator();
+        const lfo = this.ctx.createOscillator();
+        const lfoGain = this.ctx.createGain();
+        if (key === 'bgm_battle') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(80, this.ctx.currentTime);
+            lfo.frequency.value = 8;
+            lfoGain.gain.value = 20;
+        } else {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(50, this.ctx.currentTime);
+            lfo.frequency.value = 0.2;
+            lfoGain.gain.value = 500;
+        }
+        lfo.connect(lfoGain);
+        lfoGain.connect(osc.frequency);
+        osc.connect(this.bgmGain);
+        lfo.start();
+        osc.start();
+        this.bgmSource = osc; 
+    },
+
+    stopBGM: function() {
+        if (this.bgmSource) {
+            try { this.bgmSource.stop(); } catch(e) {}
+            this.bgmSource = null;
+            this.currentBGMKey = null;
+        }
+    },
+
+    playSE: function(key) {
+        if (!this.ctx) return;
+        if (this.buffers[key] && this.buffers[key].length > 1000) { 
+             const source = this.ctx.createBufferSource();
+             source.buffer = this.buffers[key];
+             source.connect(this.seGain);
+             source.start(0);
+             return;
+        }
+        this.playFallbackSE(key);
+    },
+    
+    playFallbackSE: function(type) {
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        gain.connect(this.seGain);
+
+        if (type === 'shoot') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(880, now);
+            osc.frequency.exponentialRampToValueAtTime(110, now + 0.1);
+            gain.gain.setValueAtTime(0.5, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now);
+            osc.stop(now + 0.1);
+        } else if (type === 'boss_shoot') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(220, now);
+            osc.frequency.exponentialRampToValueAtTime(55, now + 0.3);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+            osc.start(now);
+            osc.stop(now + 0.3);
+        } else if (type === 'boom') {
+            const bufferSize = this.ctx.sampleRate * 0.5; 
+            const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+            const noise = this.ctx.createBufferSource();
+            noise.buffer = buffer;
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 1000;
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.gain.setValueAtTime(0.8, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+            noise.start(now);
+        } else if (type === 'hit') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.linearRampToValueAtTime(100, now + 0.1);
+            gain.gain.setValueAtTime(0.5, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now);
+            osc.stop(now + 0.1);
+        } else if (type === 'ui') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(1200, now);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+            osc.start(now);
+            osc.stop(now + 0.05);
+        } else if (type === 'powerup') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(440, now);
+            osc.frequency.linearRampToValueAtTime(880, now + 0.1);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+            osc.start(now);
+            osc.stop(now + 0.2);
+        }
+        osc.connect(gain);
+    },
+
+    setBGMVolume: function(val) {
+        this.bgmVolume = parseFloat(val);
+        if(this.bgmGain) this.bgmGain.gain.value = this.bgmVolume;
+    },
+
+    setSEVolume: function(val) {
+        this.seVolume = parseFloat(val);
+        if(this.seGain) this.seGain.gain.value = this.seVolume;
+    }
+};
+
+function updateBGMVolume(val) { SoundManager.setBGMVolume(val); }
+function updateSEVolume(val) { SoundManager.setSEVolume(val); }
+function playSound(type) { SoundManager.playSE(type); }
+function toggleAudioPanel() {
+    const panel = document.getElementById('audio-panel');
+    panel.classList.toggle('active');
+    playSound('ui');
+}
+
 // --- CONFIG & CONSTANTS ---
-const MAX_PARTICLES = 80; // PERFORMANCE CAP
+const MAX_PARTICLES = 80; 
 const COLORS = {
     bg: '#050508',
     player: '#00ffff',
@@ -303,14 +538,13 @@ let boss;
 let projectiles = [];
 let particles = [];
 let fields = []; 
-let obstacles = []; 
 
 // --- DATA ---
 let ownedGlyphIds = []; 
 let bossConfig = []; 
 let currentSP = 0;
 let gainedSP = 0;
-let lootPicksRemaining = 1; // Reward logic
+let lootPicksRemaining = 1; 
 
 let playerStats = {
     maxHp: 100,
@@ -331,7 +565,6 @@ let bossSettings = {
     atkMult: 1.0
 };
 
-// Skill Tree Data
 const SKILL_TREE = [
     { id: 'HP', name: 'CORE_INTEGRITY', desc: '最大HP+10', cost: 1, maxLvl: 10, currentLvl: 0, apply: (lvl) => playerStats.maxHp = 100 + (lvl * 10) },
     { id: 'DASH_CNT', name: 'BOOSTER_CAPACITY', desc: '回避回数+1', cost: 5, maxLvl: 3, currentLvl: 0, apply: (lvl) => playerStats.dashMaxCharges = 1 + lvl },
@@ -340,19 +573,14 @@ const SKILL_TREE = [
     { id: 'DASH_CD', name: 'BOOSTER_RECHARGE', desc: '回避CT短縮', cost: 3, maxLvl: 5, currentLvl: 0, apply: (lvl) => playerStats.dashCooldownMax = 180 - (lvl * 12) }
 ];
 
-// --- GLYPH DATABASE ---
 const GLYPH_DB = [
-    // TIER 1
     { id: 'a_bullet', type: 'A', tier: 1, name: 'SINGLE_SHOT', desc: '標準的な弾をボスの正面に発射する。', weight: 1.0 },
     { id: 'a_spread', type: 'A', tier: 1, name: 'TRI_SPREAD', desc: '扇状に3発の弾を拡散発射する。', weight: 1.2 },
     { id: 'a_5way',   type: 'A', tier: 1, name: 'PENTA_SPREAD', desc: '扇状に5発の弾を拡散発射する。', weight: 1.3 }, 
     { id: 'm_chase',  type: 'M', tier: 1, name: 'CHASE_AI', desc: 'プレイヤーの位置へゆっくりと近づく。', weight: 1.0 },
-    // m_random REMOVED
     { id: 'f_bomb',   type: 'F', tier: 1, name: 'BOMB_RAID', desc: 'プレイヤーの周囲に円形爆撃を行う。', weight: 1.5 },
     { id: 's_fast',   type: 'S', tier: 1, name: 'VELOCITY_UP', desc: 'ボスの弾速が1.3倍になる。', weight: 1.5 }, 
     { id: 's_tough',  type: 'S', tier: 1, name: 'ARMOR_PLATE', desc: 'ボスのHPが増加する。', weight: 1.5 }, 
-    
-    // TIER 2
     { id: 'a_circle',   type: 'A', tier: 2, name: 'OMNI_BURST', desc: '周囲360度へ弾をばら撒く。', weight: 1.5 },
     { id: 'a_sniper',   type: 'A', tier: 2, name: 'RAILGUN', desc: '弾速の速い、高威力の一撃を放つ。', weight: 1.5 },
     { id: 'a_homing',   type: 'A', tier: 2, name: 'MISSILE', desc: '低速だが執拗にプレイヤーを追う弾。', weight: 1.5 },
@@ -375,9 +603,9 @@ const GLYPH_DB = [
     { id: 's_regen',    type: 'S', tier: 2, name: 'AUTO_REPAIR', desc: 'ボスのHPが徐々に自動回復する。', weight: 2.5 }, 
     { id: 's_thorn',    type: 'S', tier: 2, name: 'SPIKE_ARMOR', desc: '接触ダメージ強化＋ノックバック。', weight: 2.5 }, 
     { id: 's_turret',   type: 'S', tier: 2, name: 'AUTO_TURRET', desc: '定期的に自律射撃を行う固定砲台を設置する。', weight: 2.5 }, 
-    // s_arms REMOVED
-
-    // TIER 3
+    { id: 's_counter',   type: 'S', tier: 2, name: 'REVENGE_SHARD', desc: '被弾時、30%の確率で反撃弾を撒き散らす。', weight: 2.0 },
+    { id: 'm_trail',     type: 'M', tier: 2, name: 'STRAFE_RUN', desc: '直進しながら後方に弾幕を設置する。', weight: 1.8 },
+    { id: 'f_wall_line', type: 'F', tier: 3, name: 'DIMENSION_VINE', desc: '5秒間持続する茨を召喚し、移動を制限する。', weight: 2.5 },
     { id: 'a_laser',    type: 'A', tier: 3, name: 'HYPER_BEAM', desc: '回避困難な極太ビームを照射する。', weight: 2.5 },
     { id: 'a_spiral',   type: 'A', tier: 3, name: 'HELIX_STORM', desc: '回転しながら大量の弾を撒き散らす。', weight: 2.0 },
     { id: 'a_split',    type: 'A', tier: 3, name: 'FRACTAL_SHOT', desc: '着弾または停止後、6方向へ再分裂する。', weight: 2.0 }, 
@@ -395,8 +623,8 @@ function getGlyphById(id) {
     return {...GLYPH_DB.find(g => g.id === id)}; 
 }
 
-// --- TOOLTIP LOGIC ---
 function showTooltip(text, x, y, title, type) {
+    // playSound('ui'); // REMOVED: Sound on hover handled by mouseenter
     let tt = document.getElementById('global-tooltip');
     tt.innerHTML = `<span class="tt-title">${title} <span class="tt-type">[${type}]</span></span>${text}`;
     tt.style.display = 'block';
@@ -418,7 +646,7 @@ function updateTooltipPos(x, y) {
 // --- P5.JS SETUP ---
 let cnv;
 function setup() {
-    cnv = createCanvas(1280, 720); // Default, resized immediately
+    cnv = createCanvas(1280, 720); 
     cnv.parent('game-container');
     noCursor();
     frameRate(60);
@@ -433,24 +661,17 @@ function windowResized() {
 }
 
 function updateGameDims() {
-    // Force 16:9 Aspect Ratio
     let targetRatio = 16 / 9;
     let windowRatio = window.innerWidth / window.innerHeight;
     let newWidth, newHeight;
-
     if (windowRatio > targetRatio) {
-        // Window is wider than 16:9
         newHeight = window.innerHeight;
         newWidth = newHeight * targetRatio;
     } else {
-        // Window is narrower than 16:9
         newWidth = window.innerWidth;
         newHeight = newWidth / targetRatio;
     }
-
     resizeCanvas(newWidth, newHeight);
-    
-    // Update container size to match canvas
     let container = document.getElementById('game-container');
     container.style.width = `${newWidth}px`;
     container.style.height = `${newHeight}px`;
@@ -496,11 +717,10 @@ function draw() {
     drawCursor();
 }
 
-// --- VISUALS ---
 function drawGridAnimation() {
     stroke(15, 25, 40); strokeWeight(1);
-    let offset = (frameCount * 0.5) % 100; // Slower grid
-    for(let x=0; x<width; x+=150) line(x, 0, x, height); // Wider grid
+    let offset = (frameCount * 0.5) % 100;
+    for(let x=0; x<width; x+=150) line(x, 0, x, height);
     for(let y=offset; y<height; y+=100) line(0, y, width, y);
 }
 function drawCursor() {
@@ -526,16 +746,14 @@ function drawBossTelegraph() {
         noFill(); stroke(255, 0, 0, 150); strokeWeight(2);
         let r = 20 + t * 100;
         ellipse(boss.dropTargetX, player.y, r, r);
-        drawingContext.setLineDash([5, 5]); // Dashed line
+        drawingContext.setLineDash([5, 5]); 
         line(boss.dropTargetX, 0, boss.dropTargetX, height);
         drawingContext.setLineDash([]);
     }
     else if (boss.state === 'VANISH_LOCK') {
-        // Solid warning line
         stroke(255, 0, 0); strokeWeight(4);
         line(boss.dropTargetX, 0, boss.dropTargetX, height);
         noFill();
-        // Flashing circle
         if (Math.floor(frameCount / 4) % 2 === 0) stroke(255, 255, 0);
         else stroke(255, 0, 0);
         ellipse(boss.dropTargetX, player.y, 40, 40);
@@ -558,52 +776,54 @@ function drawBossTelegraph() {
 }
 
 function createParticle(x, y, color, type, size=5) {
-    if(particles.length > MAX_PARTICLES) particles.shift(); // Cap particles
-    particles.push({x: x, y: y, color: color, life: 1.0, type: type, vx: random(-3, 3), vy: random(-3, 3), size: size});
+    if(particles.length > MAX_PARTICLES) particles.shift(); 
+    let vx = random(-3, 3);
+    let vy = random(-3, 3);
+    if (type === 'suction_part') { vx = 0; vy = 0; }
+    particles.push({x: x, y: y, color: color, life: 1.0, type: type, vx: vx, vy: vy, size: size});
 }
-// NEW: Glitch Effect Helper
 function createGlitchEffect(x, y, count=20) {
     for(let i=0; i<count; i++) {
         let colors = ['#0ff', '#f0f', '#fff'];
         let c = random(colors);
-        particles.push({
-            x: x + random(-30, 30), 
-            y: y + random(-30, 30), 
-            color: c, 
-            life: 1.0, 
-            type: 'noise', 
-            vx: random(-5, 5), 
-            vy: random(-5, 5), 
-            w: random(4, 20),
-            h: random(2, 6)
-        });
+        particles.push({x: x + random(-30, 30), y: y + random(-30, 30), color: c, life: 1.0, type: 'noise', vx: random(-5, 5), vy: random(-5, 5), w: random(4, 20), h: random(2, 6)});
     }
 }
 function createExplosion(x, y, color, count=8) {
+    playSound('boom');
     for(let i=0; i<count; i++) createParticle(x, y, color, 'boom', random(5, 10));
 }
 function updateParticles() {
     for (let i = particles.length - 1; i >= 0; i--) {
-        let p = particles[i]; p.x += p.vx; p.y += p.vy; p.life -= 0.05; if (p.life <= 0) particles.splice(i, 1);
+        let p = particles[i]; 
+        if (p.type === 'suction_part') {
+            let a = atan2(player.y - p.y, player.x - p.x);
+            p.x += cos(a) * 8;
+            p.y += sin(a) * 8;
+            if (dist(p.x, p.y, player.x, player.y) < 20) p.life = 0; 
+        } else {
+            p.x += p.vx; p.y += p.vy; 
+        }
+        p.life -= 0.05; 
+        if (p.life <= 0) particles.splice(i, 1);
     }
 }
 function drawParticles() {
     noStroke(); 
     for (let p of particles) { 
         let c = color(p.color); c.setAlpha(p.life * 255); fill(c); 
-        if (p.type === 'boom') { 
-            rectMode(CENTER); rect(p.x, p.y, p.size * p.life, p.size * p.life); 
-        } 
-        else if (p.type === 'noise') {
-            rectMode(CENTER); rect(p.x, p.y, p.w, p.h);
-        }
+        if (p.type === 'boom') { rectMode(CENTER); rect(p.x, p.y, p.size * p.life, p.size * p.life); } 
+        else if (p.type === 'noise') { rectMode(CENTER); rect(p.x, p.y, p.w, p.h); }
         else ellipse(p.x, p.y, p.size, p.size); 
     }
 }
 
-// --- PLAYER LOGIC ---
 function initPlayer() {
-    player = { x: width / 2, y: height - 200, hp: playerStats.maxHp, cooldown: 0, dashCharges: playerStats.dashMaxCharges, dashRechargeTimer: 0, isDashing: false, dashTime: 0, invincible: false, damageInvincibleTimer: 0, shakeTimer: 0 };
+    player = { 
+        x: width / 2, y: height - 200, hp: playerStats.maxHp, cooldown: 0, 
+        dashCharges: playerStats.dashMaxCharges, dashRechargeTimer: 0, isDashing: false, 
+        dashTime: 0, invincible: false, damageInvincibleTimer: 0, shakeTimer: 0
+    };
     playerStats.hp = playerStats.maxHp; updateDashUI();
 }
 function updatePlayer() {
@@ -611,17 +831,17 @@ function updatePlayer() {
         player.isDashing = true; player.dashTime = playerStats.dashInvincibleFrame; player.dashCharges--;
         if (player.dashRechargeTimer <= 0) player.dashRechargeTimer = playerStats.dashCooldownMax;
         player.invincible = true; createExplosion(player.x, player.y, COLORS.playerDash, 10); updateDashUI();
+        playSound('powerup'); 
     }
     if (player.dashCharges < playerStats.dashMaxCharges) {
         player.dashRechargeTimer--;
         if (player.dashRechargeTimer <= 0) { player.dashCharges++; updateDashUI(); if (player.dashCharges < playerStats.dashMaxCharges) player.dashRechargeTimer = playerStats.dashCooldownMax; }
     }
-    
-    // Damage Invincibility
     if (player.damageInvincibleTimer > 0) player.damageInvincibleTimer--;
 
     let dx = 0; let dy = 0; if (keyIsDown(87)) dy -= 1; if (keyIsDown(83)) dy += 1; if (keyIsDown(65)) dx -= 1; if (keyIsDown(68)) dx += 1; 
     if (dx !== 0 || dy !== 0) { let len = sqrt(dx*dx + dy*dy); dx /= len; dy /= len; }
+    
     let speed = playerStats.speed * (player.isDashing ? 2.5 : 1.0);
     let nextX = player.x + dx * speed; let nextY = player.y + dy * speed;
     player.x = constrain(nextX, 20, width-20); player.y = constrain(nextY, 20, height-20);
@@ -634,6 +854,7 @@ function updateDashUI() {
     for(let i=0; i<playerStats.dashMaxCharges; i++) { let div = document.createElement('div'); div.className = 'dash-pip' + (i < player.dashCharges ? ' ready' : ''); container.appendChild(div); }
 }
 function firePlayerWeapon() {
+    playSound('shoot');
     let angle = atan2(mouseY - player.y, mouseX - player.x);
     let spd = playerStats.bulletSpeed; let dmg = playerStats.damage;
     createProjectile(player.x, player.y, cos(angle)*spd, sin(angle)*spd, 'PLAYER', 5, dmg);
@@ -643,14 +864,11 @@ function drawPlayer() {
     let drawX = player.x; let drawY = player.y;
     if (player.shakeTimer > 0) { drawX += random(-5, 5); drawY += random(-5, 5); player.shakeTimer--; }
     translate(drawX, drawY);
-    
-    // Blink if invincible
     if ((player.invincible || player.damageInvincibleTimer > 0) && frameCount % 4 < 2) { 
         stroke(0, 255, 255); noFill(); 
     } else { 
         fill(0); stroke(COLORS.player); 
     }
-    
     strokeWeight(2); 
     push(); rotate(atan2(mouseY - player.y, mouseX - player.x) + PI/2);
     beginShape(); vertex(0, -15); vertex(-10, 10); vertex(0, 5); vertex(10, 10); endShape(CLOSE);
@@ -661,10 +879,7 @@ function drawPlayer() {
 function initBoss() {
     let uniqueGlyphs = new Set(bossConfig.map(g => g.id));
     let glyphCount = uniqueGlyphs.size;
-    
     let hpMult = 1.0 + (glyphCount * 0.15); let cdReduction = constrain(glyphCount * 0.05, 0, 0.5); 
-    
-    // CHANGE: Removed attack scaling based on chip count
     let damageMult = 1.0; 
     
     let attacks = bossConfig.filter(g => g.type === 'A'); let moves = bossConfig.filter(g => g.type === 'M');
@@ -678,10 +893,11 @@ function initBoss() {
     let hasFunnel = specials.some(g => g.id === 's_funnel');
     let hasThorn = specials.some(g => g.id === 's_thorn');
     let hasTurret = specials.some(g => g.id === 's_turret');
+    let hasCounter = specials.some(g => g.id === 's_counter');
+    let hasWallLine = fields.some(g => g.id === 'f_wall_line');
 
-    // SIZE CAP ADJUSTMENT
     let baseSize = 40;
-    let addedSize = Math.min(bossConfig.length * 1.5, 30); // Keep size scaling with total count for visual
+    let addedSize = Math.min(bossConfig.length * 1.5, 30); 
     let bossSize = baseSize + addedSize;
 
     boss = {
@@ -692,11 +908,10 @@ function initBoss() {
         hasRegen: hasRegen, hasBarrier: hasBarrier, barrierActive: false, barrierTimer: 0,
         hasFunnel: hasFunnel, funnels: [], hasThorn: hasThorn, targetX: 0, targetY: 0,
         hasTurret: hasTurret, turretTimer: 0,
-        dropTargetX: 0, vy: 0 // New props for VANISH_DROP
+        hasCounter: hasCounter, hasWallLine: hasWallLine, wallLineTimer: 0,
+        dropTargetX: 0, vy: 0 
     };
     if(specials.some(g => g.id === 's_tough')) { boss.maxHp *= 1.5; boss.hp = boss.maxHp; }
-    
-    // KEEP: s_power still increases damage
     if(specials.some(g => g.id === 's_power')) boss.dmgMult *= 1.3;
     
     if (boss.hasFunnel) {
@@ -711,15 +926,17 @@ function initBoss() {
     if(boss.hasThorn) statusDiv.innerHTML += '<div class="text-xs text-red-600 font-bold">? SPIKE</div>';
     if(boss.hasFunnel) statusDiv.innerHTML += '<div class="text-xs text-cyan-400 font-bold">● DRONE</div>';
     if(boss.hasTurret) statusDiv.innerHTML += '<div class="text-xs text-orange-400 font-bold">■ TURRET</div>';
+    if(boss.hasCounter) statusDiv.innerHTML += '<div class="text-xs text-yellow-500 font-bold">? COUNTER</div>';
+    if(boss.hasWallLine) statusDiv.innerHTML += '<div class="text-xs text-pink-500 font-bold">? VINE</div>';
+    
     document.getElementById('boss-hp').style.width = '100%';
-    document.getElementById('wave-info').innerText = "MODULES: " + uniqueGlyphs.size; // HUD Update
+    document.getElementById('wave-info').innerText = "MODULES: " + uniqueGlyphs.size; 
 }
 function updateBoss() {
     boss.drawRot += 0.02;
     if (boss.hp <= 0) return; 
     if (boss.hasRegen && boss.hp < boss.maxHp) boss.hp += 0.05; 
 
-    // NEW BARRIER LOGIC
     if (boss.hasBarrier) {
         if (!boss.barrierActive) {
             boss.barrierTimer++;
@@ -750,19 +967,24 @@ function updateBoss() {
     }
     if (boss.hasTurret) {
         boss.turretTimer++;
-        if (boss.turretTimer > 300) { // Every 5 seconds
-            // Check turret count limit
+        if (boss.turretTimer > 300) { 
             let currentTurrets = fields.filter(f => f.type === 'f_turret').length;
             if (currentTurrets < 2) {
                 boss.turretTimer = 0;
-                // Spawn turret
                 let tx = random(50, width-50); let ty = random(50, height/2);
                 fields.push({x: tx, y: ty, r: 25, type: 'f_turret', hp: 40, maxHp: 40, timer: 0});
                 createExplosion(tx, ty, '#fa0', 10);
             } else {
-                // If full, retry soon
                 boss.turretTimer = 290;
             }
+        }
+    }
+    
+    if (boss.hasWallLine) {
+        boss.wallLineTimer++;
+        if (boss.wallLineTimer > 360) { 
+             boss.wallLineTimer = 0;
+             executeVineAttack();
         }
     }
 
@@ -773,7 +995,6 @@ function updateBoss() {
     boss.timer--;
     updateNormalBehavior();
     
-    // Bounds check
     if (boss.state !== 'SHADOW_RUSH' && boss.state !== 'VANISH_WAIT' && boss.state !== 'VANISH_LOCK' && boss.state !== 'VANISH_FALL') { 
         boss.x = constrain(boss.x, boss.size, width-boss.size); boss.y = constrain(boss.y, boss.size, height-boss.size); 
     }
@@ -783,39 +1004,39 @@ function updateNormalBehavior() {
         if (boss.timer <= 0) {
             if (random() < 0.6) {
                 boss.state = 'CHARGE'; boss.timer = 40 * boss.cdMult; boss.currentAttack = random(boss.glyphParts.attacks);
+                // REMOVED WARNING SOUND
             } else {
                 boss.state = 'MOVE'; boss.timer = 60 * boss.cdMult; boss.currentMove = random(boss.glyphParts.moves);
                 if (boss.currentMove.id.includes('warp')) { 
-                    // EFECT: Warp out Glitch
                     createGlitchEffect(boss.x, boss.y, 40);
-                    
                     boss.x = random(50, width-50); boss.y = random(50, height-50); 
-                    
-                    // EFECT: Warp in Glitch
                     createGlitchEffect(boss.x, boss.y, 40);
                     boss.state = 'IDLE'; boss.timer = 20; 
                 }
-                else if (boss.currentMove.id.includes('dash')) { let a = atan2(player.y - boss.y, player.x - boss.x); let s = 15; if(boss.isRaged) s *= 1.3; boss.vx = cos(a)*s; boss.vy = sin(a)*s; }
+                else if (boss.currentMove.id.includes('dash') || boss.currentMove.id === 'm_trail') { 
+                    let a = atan2(player.y - boss.y, player.x - boss.x); let s = 15; if(boss.isRaged) s *= 1.3; 
+                    boss.vx = cos(a)*s; boss.vy = sin(a)*s; 
+                }
                 else if (boss.currentMove.id === 'm_step') { boss.state = 'STEP_MOVE'; boss.stepCount = 0; boss.timer = 10; }
                 else if (boss.currentMove.id === 'm_stalker') { 
-                    createGlitchEffect(boss.x, boss.y, 30); // Vanish
+                    createGlitchEffect(boss.x, boss.y, 30); 
                     let a = atan2(mouseY - player.y, mouseX - player.x); let distBehind = 300; 
                     boss.x = player.x - cos(a) * distBehind; boss.y = player.y - sin(a) * distBehind; 
-                    createGlitchEffect(boss.x, boss.y, 30); // Appear
+                    createGlitchEffect(boss.x, boss.y, 30); 
                     boss.state = 'IDLE'; boss.timer = 20; 
                 }
-                else if (boss.currentMove.id === 'm_shadow_rush') { // UPDATED BEHAVIOR: Orbiting
+                else if (boss.currentMove.id === 'm_shadow_rush') { 
                     boss.state = 'SHADOW_RUSH'; 
                     boss.rushAngle = atan2(boss.y - player.y, boss.x - player.x);
                     boss.rushDist = 300;
                     boss.timer = 50; 
                     createGlitchEffect(boss.x, boss.y, 20);
                 }
-                else if (boss.currentMove.id === 'm_vanish_drop') { // NEW BEHAVIOR: Vanish Drop
+                else if (boss.currentMove.id === 'm_vanish_drop') { 
                     boss.state = 'VANISH_WAIT'; 
-                    createGlitchEffect(boss.x, boss.y, 50); // Heavy glitch vanish
-                    boss.x = -999; boss.y = -999; // Vanish
-                    boss.timer = 60; // 1s wait
+                    createGlitchEffect(boss.x, boss.y, 50); 
+                    boss.x = -999; boss.y = -999; 
+                    boss.timer = 60; 
                     boss.dropTargetX = player.x; 
                 }
             }
@@ -824,7 +1045,6 @@ function updateNormalBehavior() {
         if (boss.timer <= 0) { 
             boss.state = 'ATTACK'; 
             executeBossAttack(boss.currentAttack); 
-            // SPECIAL CASE: Stay longer for Implode attack
             if (boss.currentAttack.id === 'a_implode') boss.timer = 160;
             else boss.timer = 20; 
             
@@ -836,10 +1056,7 @@ function updateNormalBehavior() {
         executeBossMove(boss.currentMove); if (boss.timer <= 0) { boss.state = 'IDLE'; boss.timer = 20 * boss.cdMult; boss.vx = 0; boss.vy = 0; }
     } else if (boss.state === 'STEP_MOVE') { 
         if (boss.timer <= 0) {
-            // EFECT: Glitch Trail (Residual Image)
             particles.push({x: boss.x, y: boss.y, w: boss.size, h: boss.size, color: '#0ff', life: 0.5, type: 'noise', vx: 0, vy: 0});
-
-            // Min Distance Logic
             let angle, destX, destY, attempts = 0;
             do {
                 angle = random(TWO_PI);
@@ -849,34 +1066,28 @@ function updateNormalBehavior() {
                 destY = constrain(destY, 50, height-50);
                 attempts++;
             } while (dist(boss.x, boss.y, destX, destY) < 80 && attempts < 10);
-
             boss.x = destX; boss.y = destY;
             boss.stepCount++; boss.timer = 15;
             if (boss.stepCount >= 3) { boss.state = 'IDLE'; boss.timer = 30; }
         }
     } else if (boss.state === 'SHADOW_RUSH') {
-        // Orbit around player
-        boss.rushAngle += 0.25; // Fast rotation
+        boss.rushAngle += 0.25; 
         let targetX = player.x + cos(boss.rushAngle) * boss.rushDist;
         let targetY = player.y + sin(boss.rushAngle) * boss.rushDist;
-        
-        // Use Lerp for "laggy" ghost effect
         boss.x = lerp(boss.x, targetX, 0.4);
         boss.y = lerp(boss.y, targetY, 0.4);
-        
         if (frameCount % 3 === 0) createGlitchEffect(boss.x, boss.y, 2);
-        
         if (boss.timer <= 0) { 
             boss.state = 'IDLE'; boss.timer = 30; 
         }
     } else if (boss.state === 'VANISH_WAIT') {
-        // Track player horizontally
         boss.dropTargetX = lerp(boss.dropTargetX, player.x, 0.1);
         boss.timer--;
         if (boss.timer <= 0) {
-            boss.state = 'VANISH_LOCK'; // LOCK PHASE ADDED
-            boss.timer = 90; // Lock delay 1.5s
-            createParticle(boss.dropTargetX, 0, '#f00', 'charge', 10); // Visual cue
+            boss.state = 'VANISH_LOCK'; 
+            boss.timer = 90; 
+            createParticle(boss.dropTargetX, 0, '#f00', 'charge', 10);
+            // REMOVED WARNING SOUND
         }
     } else if (boss.state === 'VANISH_LOCK') {
         boss.timer--;
@@ -884,15 +1095,15 @@ function updateNormalBehavior() {
             boss.state = 'VANISH_FALL';
             boss.x = boss.dropTargetX;
             boss.y = -200;
-            boss.vy = 40; // Very fast drop
+            boss.vy = 40; 
         }
     } else if (boss.state === 'VANISH_FALL') {
         boss.y += boss.vy;
-        if (boss.y >= player.y) { // Impact at player height
+        if (boss.y >= player.y) { 
              boss.y = player.y; 
              createExplosion(boss.x, boss.y, '#f05', 30);
-             createGlitchEffect(boss.x, boss.y, 40); // Impact glitch
-             createProjectile(boss.x, boss.y, 0, 0, 'BOSS', 60, 20, {type: 'SHOCKWAVE', life: 20}); // Impact wave
+             createGlitchEffect(boss.x, boss.y, 40); 
+             createProjectile(boss.x, boss.y, 0, 0, 'BOSS', 60, 20, {type: 'SHOCKWAVE', life: 20}); 
              boss.state = 'IDLE';
              boss.timer = 40;
              boss.y = constrain(boss.y, 50, height-50);
@@ -900,10 +1111,36 @@ function updateNormalBehavior() {
     }
 }
 
+function executeVineAttack() {
+    let side = floor(random(4)); 
+    let startX, startY, w, h;
+    let thickness = 20; 
+    
+    if (side === 0) { 
+        startX = random(50, width-50); startY = height/2; 
+        w = thickness; h = height;
+    } else if (side === 1) { 
+        startX = width/2; startY = random(50, height-50);
+        w = width; h = thickness;
+    } else if (side === 2) { 
+        startX = random(50, width-50); startY = height/2;
+        w = thickness; h = height;
+    } else { 
+        startX = width/2; startY = random(50, height-50);
+        w = width; h = thickness;
+    }
+    
+    // REMOVED WARNING SOUND
+    
+    fields.push({type: 'f_line_pre', x: startX, y: startY, w: w, h: h, life: 60, maxLife: 60, nextLife: 300, subtype: 'VINE'});
+}
+
 function executeBossAttack(glyph, isDouble=false) {
     if (!isDouble && boss.hasDouble && random() < 0.3) { setTimeout(() => executeBossAttack(glyph, true), 300); createParticle(boss.x, boss.y, '#b0f', 'boom', 10); }
     let angle = atan2(player.y - boss.y, player.x - boss.x); let spd = 6 * boss.bulletSpeedMult; let dmg = 10 * boss.dmgMult; if(boss.isRaged) { spd *= 1.2; dmg *= 1.2; }
     
+    playSound('boss_shoot');
+
     if (glyph.id === 'a_bullet') createProjectile(boss.x, boss.y, cos(angle)*spd, sin(angle)*spd, 'BOSS', 8, dmg);
     else if (glyph.id === 'a_spread') for(let a of [-0.3, 0, 0.3]) createProjectile(boss.x, boss.y, cos(angle+a)*spd, sin(angle+a)*spd, 'BOSS', 8, dmg);
     else if (glyph.id === 'a_5way') for(let a of [-0.4, -0.2, 0, 0.2, 0.4]) createProjectile(boss.x, boss.y, cos(angle+a)*spd, sin(angle+a)*spd, 'BOSS', 8, dmg);
@@ -916,10 +1153,7 @@ function executeBossAttack(glyph, isDouble=false) {
     else if (glyph.id === 'a_wave') createProjectile(boss.x, boss.y, 0, 0, 'BOSS', 40, dmg*1.5, {type: 'SHOCKWAVE', life: 80});
     else if (glyph.id === 'a_cutter') { for(let i=0; i<4; i++) { let fireAngle = (PI/2) * i; createProjectile(boss.x, boss.y, cos(fireAngle)*10, sin(fireAngle)*10, 'BOSS', 12, dmg, {type: 'SHOOTER_CUTTER', timer: 60, state: 'OUT', angle: fireAngle}); } }
     else if (glyph.id === 'a_cluster') createProjectile(boss.x, boss.y, cos(angle)*7, sin(angle)*7, 'BOSS', 15, dmg, {type: 'CLUSTER', timer: 40});
-    
-    // CHANGE: Center is now a fixed coordinate object {x, y}, not the moving boss object
     else if (glyph.id === 'a_orbit_shot') for(let i=0; i<4; i++) createProjectile(boss.x, boss.y, 0, 0, 'BOSS', 10, dmg, {type: 'ORBIT_SHOT', angle: (PI/2)*i, dist: 50, center: {x: boss.x, y: boss.y}});
-    
     else if (glyph.id === 'a_charge_shot') createProjectile(boss.x, boss.y, cos(angle)*2, sin(angle)*2, 'BOSS', 15, dmg*2, {type: 'CHARGE_SHOT', timer: 0});
     else if (glyph.id === 'a_circle') for(let i=0; i<12; i++) createProjectile(boss.x, boss.y, cos(TWO_PI/12*i)*spd, sin(TWO_PI/12*i)*spd, 'BOSS', 6, dmg);
     else if (glyph.id === 'a_sniper') createProjectile(boss.x, boss.y, cos(angle)*spd*2.5, sin(angle)*spd*2.5, 'BOSS', 12, dmg*1.5);
@@ -927,9 +1161,8 @@ function executeBossAttack(glyph, isDouble=false) {
     else if (glyph.id === 'a_laser') createProjectile(boss.x, boss.y, cos(angle)*15, sin(angle)*15, 'BOSS', 25, dmg*2);
     else if (glyph.id === 'a_mine_scatter') { for(let i=0; i<12; i++) { let a = random(TWO_PI); let s = random(8, 22); let f = random(0.88, 0.96); createProjectile(boss.x, boss.y, cos(a)*s, sin(a)*s, 'BOSS', 10, dmg, {type: 'MINE', timer: random(50, 90), friction: f}); } } 
     else if (glyph.id === 'a_implode') {
-        for(let i=0; i<10; i++) { // Reduced count to 10
+        for(let i=0; i<10; i++) { 
             let sx, sy;
-            // Spawn well outside screen
             if (random() < 0.5) {
                 sx = random() < 0.5 ? -100 : width + 100;
                 sy = random(-100, height + 100);
@@ -937,8 +1170,7 @@ function executeBossAttack(glyph, isDouble=false) {
                 sx = random(-100, width + 100);
                 sy = random() < 0.5 ? -100 : height + 100;
             }
-            // Target is boss center
-            let rndSpeed = random(2.0, 5.0); // Randomize speed
+            let rndSpeed = random(2.0, 5.0); 
             createProjectile(sx, sy, 0, 0, 'BOSS', 12, dmg, {type: 'IMPLODE', target: {x: boss.x, y: boss.y}, speed: rndSpeed});
         }
     }
@@ -951,9 +1183,13 @@ function executeBossMove(glyph) {
         if (d > 150) { boss.x = lerp(boss.x, player.x, 0.03 * speed); boss.y = lerp(boss.y, player.y, 0.03 * speed); }
         else if (d < 130) { let a = atan2(boss.y-player.y, boss.x-player.x); boss.x += cos(a)*2; boss.y += sin(a)*2; }
     } else if (glyph.id === 'm_random') {
-        // Removed logic
     } else if (glyph.id === 'm_dash') {
         boss.x += boss.vx; boss.y += boss.vy;
+    } else if (glyph.id === 'm_trail') { 
+        boss.x += boss.vx * 0.5; boss.y += boss.vy * 0.5; 
+        if (frameCount % 12 === 0) {
+             createProjectile(boss.x, boss.y, random(-1,1), random(-1,1), 'BOSS', 6, 8, {type: 'MINE', timer: 60, friction: 0.9});
+        }
     } else if (glyph.id === 'm_zigzag') {
         let d = dist(boss.x, boss.y, player.x, player.y);
         let angle = atan2(player.y - boss.y, player.x - boss.x);
@@ -989,22 +1225,16 @@ function executeBossField(glyph) {
     }
 }
 function drawBoss() {
-    // Hide boss if Vanishing
     if (boss.state === 'VANISH_WAIT' || boss.state === 'VANISH_FALL' || boss.state === 'VANISH_LOCK') return;
 
     push(); let drawColor = boss.isRaged ? COLORS.bossRage : COLORS.boss;
     
-    // Barrier Visual (Hit based)
     if (boss.barrierActive) {
-        // Color depends on remaining hits
         let alpha = map(boss.barrierHits, 0, 5, 50, 200);
         noFill(); stroke(0, 100, 255, alpha); strokeWeight(3);
-        
         rectMode(CENTER);
         push(); translate(boss.x, boss.y); rotate(frameCount * 0.05);
         rect(0, 0, boss.size * 2.8, boss.size * 2.8);
-        
-        // Hit markers
         for(let i=0; i<boss.barrierHits; i++) {
              push(); rotate((TWO_PI/5)*i);
              fill(0, 200, 255); noStroke();
@@ -1014,7 +1244,6 @@ function drawBoss() {
         pop();
     }
 
-    // Funnels
     if (boss.hasFunnel) {
         for(let f of boss.funnels) {
             if (f.active) {
@@ -1028,7 +1257,6 @@ function drawBoss() {
     
     translate(boss.x, boss.y); 
     
-    // HP Bar
     let hpW = 80; let hpH = 6;
     noStroke(); fill(0, 0, 0, 150); rect(0, -boss.size - 20, hpW, hpH);
     fill(boss.isRaged ? '#f00' : '#f0f'); 
@@ -1036,21 +1264,17 @@ function drawBoss() {
     rectMode(CORNER); rect(-hpW/2, -boss.size - 23, hpW * bossPct, hpH);
     rectMode(CENTER);
     
-    // --- GEOMETRIC BOSS DESIGN ---
     noFill(); stroke(drawColor); strokeWeight(2);
     
-    // Core
     push(); rotate(boss.drawRot);
     rect(0, 0, boss.size, boss.size);
     pop();
 
-    // Outer Shell 1
     push(); rotate(-boss.drawRot * 0.5); 
     strokeWeight(1); stroke(drawColor); 
     rect(0, 0, boss.size * 1.4, boss.size * 1.4);
     pop();
 
-    // Outer Shell 2 (Pulsing)
     push(); rotate(boss.drawRot * 0.2);
     let pulse = 1.0 + sin(frameCount * 0.1) * 0.1;
     scale(pulse);
@@ -1058,7 +1282,6 @@ function drawBoss() {
     rect(0, 0, boss.size * 1.8, boss.size * 1.8);
     pop();
 
-    // Floating Bits
     for(let i=0; i<4; i++) {
         push(); rotate((TWO_PI/4)*i + boss.drawRot);
         translate(boss.size, 0);
@@ -1085,7 +1308,7 @@ function drawBoss() {
 
 function createProjectile(x, y, vx, vy, owner, size, dmg, behavior=null) { projectiles.push({ x, y, vx, vy, owner, size, dmg, behavior }); }
 function updateProjectiles() {
-    let suctionActive = false; // Flag to check if Nova Cycle is active
+    let suctionActive = false; 
 
     for (let i = projectiles.length - 1; i >= 0; i--) {
         let p = projectiles[i]; let remove = false;
@@ -1136,32 +1359,34 @@ function updateProjectiles() {
             }
             else if (p.behavior.type === 'IMPLODE') {
                 suctionActive = true;
-                // Move towards target
                 let tx = p.behavior.target.x; let ty = p.behavior.target.y;
                 let a = atan2(ty - p.y, tx - p.x);
                 let spd = p.behavior.speed; 
                 p.vx = cos(a) * spd; p.vy = sin(a) * spd;
-                
-                if (dist(p.x, p.y, tx, ty) < 15) remove = true; // Reach center
+                if (dist(p.x, p.y, tx, ty) < 15) remove = true; 
             }
         }
         if(!remove) {
             p.x += p.vx; p.y += p.vy;
             if (p.behavior && p.behavior.type === 'BOUNCE') { let b=false; if(p.x<0||p.x>width){p.vx*=-1;b=true;} if(p.y<0||p.y>height){p.vy*=-1;b=true;} if(b){p.behavior.bounces--; if(p.behavior.bounces<=0)p.behavior=null;} }
             else if (p.x<0||p.x>width||p.y<0||p.y>height) {
-                // Only remove if NOT imploding (implode starts outside)
-                if (!p.behavior || p.behavior.type !== 'IMPLODE') remove=true;
+                if (!p.behavior || (p.behavior.type !== 'IMPLODE' && p.behavior.type !== 'TRACE')) remove=true;
             }
         }
         if(remove) projectiles.splice(i, 1);
     }
-
-    // Apply player suction if NOVA_CYCLE is active
     if (suctionActive) {
         let angle = atan2(boss.y - player.y, boss.x - player.x);
         let suctionForce = 1.5;
         player.x += cos(angle) * suctionForce;
         player.y += sin(angle) * suctionForce;
+        if (frameCount % 4 === 0) {
+             let spawnAngle = random(TWO_PI);
+             let dist = random(100, 300);
+             let px = boss.x + cos(spawnAngle) * dist;
+             let py = boss.y + sin(spawnAngle) * dist;
+             createParticle(px, py, '#a0f', 'suction_part', 3);
+        }
     }
 }
 
@@ -1211,23 +1436,23 @@ function drawProjectiles() {
         ellipse(p.x, p.y, p.size, p.size);
     }
 }
+
+// --- RESTORED MISSING FUNCTIONS ---
 function updateFields() {
     for (let i = fields.length - 1; i >= 0; i--) {
         fields[i].life--;
         if (fields[i].type === 'f_bomb' && fields[i].life <= 0) { explodeField(fields[i], true); fields.splice(i, 1); }
         else if (fields[i].type === 'f_geo_bomb' && fields[i].life <= 0) { explodeGeoBomb(fields[i]); fields.splice(i, 1); }
         else if (fields[i].type === 'f_line_pre' && fields[i].life <= 0) {
-            fields.push({type: 'f_hazard_rect', x: fields[i].x, y: fields[i].y, w: fields[i].w, h: fields[i].h, life: 20});
+            let duration = fields[i].nextLife || 20;
+            fields.push({type: 'f_hazard_rect', x: fields[i].x, y: fields[i].y, w: fields[i].w, h: fields[i].h, life: duration, subtype: fields[i].subtype});
             createExplosion(fields[i].x, fields[i].y, '#f55', 20);
             fields.splice(i, 1);
         }
         else if (fields[i].type === 'f_turret') {
-            fields[i].life++; // Turret stays, life is actually used to prevent auto-removal logic here if we wanted
-            // Re-implement infinite life for turrets or manage it differently
-            // Here we just keep life > 0 to prevent removal by general logic, handled by HP
+            fields[i].life++; 
             fields[i].life = 100; 
             
-            // Turret Logic
             fields[i].timer++;
             if (fields[i].timer > 90) {
                 fields[i].timer = 0;
@@ -1246,7 +1471,7 @@ function explodeGeoBomb(f) {
 function explodeField(f, isBomb=false) {
     createExplosion(f.x, f.y, '#fa0', 30); let r = isBomb ? f.r : f.r + 20;
     let d = dist(player.x, player.y, f.x, f.y);
-    if (d < r) { if(!player.invincible && player.damageInvincibleTimer <= 0) {playerStats.hp -= 25; player.shakeTimer = 20; player.damageInvincibleTimer = 60;} createParticle(player.x, player.y, '#f00', 'boom'); }
+    if (d < r) { if(!player.invincible && player.damageInvincibleTimer <= 0) {playerStats.hp -= 25; player.shakeTimer = 20; player.damageInvincibleTimer = 60; playSound('hit'); } createParticle(player.x, player.y, '#f00', 'boom'); }
 }
 function drawFields() {
     for (let f of fields) {
@@ -1260,32 +1485,26 @@ function drawFields() {
         } else if (f.type === 'f_turret') {
              fill('#333'); stroke('#fa0'); strokeWeight(2);
              rectMode(CENTER); rect(f.x, f.y, 30, 30);
-             // Turret Gun
              let a = atan2(player.y - f.y, player.x - f.x);
              push(); translate(f.x, f.y); rotate(a); fill('#fa0'); rect(10, 0, 20, 8); pop();
-             // HP
              let hpPct = f.hp / f.maxHp;
              noStroke(); fill('#f00'); rect(f.x, f.y - 25, 30, 4);
              fill('#0f0'); rect(f.x - 15 + 15*hpPct, f.y - 25, 30*hpPct, 4);
         } else if (f.type === 'f_geo_bomb') {
-             // Warning Circle
              let pct = 1 - (f.life / f.maxLife);
              fill(255, 100, 0, 50); noStroke(); ellipse(f.x, f.y, 60);
              
-             // Timer Arc
              noFill(); stroke(255, 50, 0); strokeWeight(3);
              arc(f.x, f.y, 60, 60, -PI/2, -PI/2 + TWO_PI * pct);
              
-             // Flashing Core
              let blink = frameCount % 10 < 5 ? 255 : 100;
-             if (f.life < 30) blink = frameCount % 4 < 2 ? 255 : 255; // Solid bright near end
+             if (f.life < 30) blink = frameCount % 4 < 2 ? 255 : 255; 
              fill(255, 200, 0, blink); noStroke(); ellipse(f.x, f.y, 30);
              
-             // Cross/Plus indicator
              stroke(255, 100, 0, 150); strokeWeight(2);
              if(f.subtype === 'PLUS') { 
                  rectMode(CENTER);
-                 fill(255, 50, 0, 30 + 100*pct); // Warning lines getting brighter
+                 fill(255, 50, 0, 30 + 100*pct); 
                  rect(f.x, f.y, 2000, 20); rect(f.x, f.y, 20, 2000); 
              } else { 
                  push(); translate(f.x, f.y); rotate(PI/4); 
@@ -1294,11 +1513,38 @@ function drawFields() {
                  pop(); 
              }
         } else if (f.type === 'f_hazard_rect') {
-             // Flash white then fade to red
-             let alpha = map(f.life, 20, 0, 255, 0);
-             let whiteMix = map(f.life, 20, 15, 255, 0);
-             fill(255, 100 + whiteMix, whiteMix, alpha); 
-             rectMode(CENTER); rect(f.x, f.y, f.w, f.h);
+             if (f.subtype === 'VINE') {
+                 push();
+                 translate(f.x, f.y);
+                 if (f.w > f.h) { 
+                     fill('#a0a'); noStroke();
+                     rectMode(CENTER); rect(0, 0, f.w, f.h);
+                     stroke('#f0f'); strokeWeight(1);
+                     for(let i = -f.w/2; i < f.w/2; i+=20) {
+                         let h = random(5, 15);
+                         line(i, 0, i+5, -h); line(i+5, -h, i+10, 0);
+                         line(i, 0, i+5, h); line(i+5, h, i+10, 0);
+                     }
+                 } else { 
+                     fill('#a0a'); noStroke();
+                     rectMode(CENTER); rect(0, 0, f.w, f.h);
+                     stroke('#f0f'); strokeWeight(1);
+                     for(let i = -f.h/2; i < f.h/2; i+=20) {
+                         let w = random(5, 15);
+                         line(0, i, -w, i+5); line(-w, i+5, 0, i+10);
+                         line(0, i, w, i+5); line(w, i+5, 0, i+10);
+                     }
+                 }
+                 pop();
+             } else {
+                 let alpha = map(f.life, 20, 0, 255, 0);
+                 if (f.life > 20) alpha = 200; 
+                 let whiteMix = 0;
+                 if (f.life > 0 && f.life < 20) whiteMix = map(f.life, 20, 0, 255, 0);
+                 
+                 fill(255, 100 + whiteMix, whiteMix, alpha); 
+                 rectMode(CENTER); rect(f.x, f.y, f.w, f.h);
+             }
         } else if (f.type === 'f_hazard_cross') {
              let alpha = map(f.life, 10, 0, 255, 0);
              let whiteMix = map(f.life, 10, 5, 255, 0);
@@ -1306,50 +1552,41 @@ function drawFields() {
              fill(255, 100 + whiteMix, whiteMix, alpha); 
              rectMode(CENTER); rect(0, 0, 1000, 40); rect(0, 0, 40, 1000); pop();
         } else if (f.type === 'f_line_pre') {
-             // Background
              fill(255, 0, 0, 30); noStroke(); rectMode(CENTER);
              rect(f.x, f.y, f.w, f.h);
              
-             // Charging Bar
              let pct = 1 - (f.life / f.maxLife);
              fill(255, 0, 0, 150 + 100*pct);
-             if(f.w > f.h) { // Horizontal
-                 rect(f.x, f.y, f.w, f.h * pct); // Fill height
-             } else { // Vertical
-                 rect(f.x, f.y, f.w * pct, f.h); // Fill width
+             if(f.w > f.h) { 
+                 rect(f.x, f.y, f.w, f.h * pct); 
+             } else { 
+                 rect(f.x, f.y, f.w * pct, f.h); 
              }
              
-             // Outline
              noFill(); stroke(255, 0, 0); strokeWeight(1);
              rect(f.x, f.y, f.w, f.h);
         }
     }
 }
+
 function checkCollisions() {
     for (let i = projectiles.length - 1; i >= 0; i--) {
         let p = projectiles[i]; let hit = false;
         if (p.owner === 'PLAYER') {
             let hitRange = boss.size/2 + p.size/2;
             let hitBoss = dist(p.x, p.y, boss.x, boss.y) < hitRange;
-            
-            // Can't hit if vanished
             if (boss.state === 'VANISH_WAIT' || boss.state === 'VANISH_FALL' || boss.state === 'VANISH_LOCK') hitBoss = false;
-
             if (hitBoss && boss.barrierActive && boss.hasBarrier) {
                 createParticle(p.x, p.y, '#00f', 'boom');
-                
-                // --- FIX: Barrier Damage Logic ---
+                playSound('hit'); 
                 boss.barrierHits--; 
                 if (boss.barrierHits <= 0) {
                     boss.barrierActive = false;
-                    createExplosion(boss.x, boss.y, '#00f', 20); // Break effect
+                    createExplosion(boss.x, boss.y, '#00f', 20); 
                 }
-                
                 projectiles.splice(i, 1);
                 continue;
             }
-
-            // Funnel Collision Check
             if (boss.hasFunnel) {
                 let hitFunnel = false;
                 for(let f of boss.funnels) {
@@ -1359,10 +1596,11 @@ function checkCollisions() {
                         if (dist(p.x, p.y, fx, fy) < 20) {
                             f.hp -= p.dmg;
                             createParticle(fx, fy, '#0ff', 'boom', 5);
+                            playSound('hit');
                             hitFunnel = true;
                             if (f.hp <= 0) {
                                 f.active = false;
-                                f.respawnTimer = 600; // 10s
+                                f.respawnTimer = 600; 
                                 createExplosion(fx, fy, '#fff', 15);
                             }
                             break;
@@ -1374,14 +1612,13 @@ function checkCollisions() {
                     continue;
                 }
             }
-
-            // Turret Collision Check
             let hitTurret = false;
             for (let j = fields.length - 1; j >= 0; j--) {
                 if (fields[j].type === 'f_turret') {
                     if (dist(p.x, p.y, fields[j].x, fields[j].y) < fields[j].r) {
                         fields[j].hp -= p.dmg;
                         createParticle(fields[j].x, fields[j].y, '#fa0', 'boom', 5);
+                        playSound('hit');
                         hitTurret = true;
                         if (fields[j].hp <= 0) {
                             createExplosion(fields[j].x, fields[j].y, '#fa0', 15);
@@ -1395,15 +1632,24 @@ function checkCollisions() {
                 projectiles.splice(i, 1);
                 continue;
             }
-
-            if (hitBoss) { boss.hp -= p.dmg; createParticle(p.x, p.y, COLORS.boss, 'boom'); hit = true; if (boss.hp <= 0) killBoss(); }
+            if (hitBoss) { 
+                boss.hp -= p.dmg; 
+                createParticle(p.x, p.y, COLORS.boss, 'boom'); 
+                hit = true; 
+                playSound('hit');
+                if (boss.hasCounter && random() < 0.3) {
+                     for(let k=0; k<2; k++) {
+                         let a = random(TWO_PI);
+                         createProjectile(boss.x, boss.y, cos(a)*4, sin(a)*4, 'BOSS', 5, 5);
+                     }
+                }
+                if (boss.hp <= 0) killBoss(); 
+            }
         } else {
             let hitDist = (p.behavior && (p.behavior.type === 'SHOCKWAVE' || p.behavior.type === 'BLACKHOLE')) ? p.size/2 : 10 + p.size/2;
-            
-            // Laser Rotation Hit Check (Simplified)
             if (p.behavior && p.behavior.type === 'LASER_BEAM_ROT') {
                  let d = dist(player.x, player.y, p.x, p.y);
-                 if (d < 500) { // Inside range
+                 if (d < 500) { 
                      let angleToPlayer = atan2(player.y - p.y, player.x - p.x);
                      let diff = abs(angleToPlayer - p.behavior.angle);
                      while(diff > PI) diff -= TWO_PI;
@@ -1411,22 +1657,21 @@ function checkCollisions() {
                      if (diff < 0.1) hitDist = 1000; 
                  }
             }
-
             if (dist(p.x, p.y, player.x, player.y) < hitDist) { 
                 if(!player.invincible && player.damageInvincibleTimer <= 0) {
                     playerStats.hp -= p.dmg; 
                     player.shakeTimer = 20;
-                    player.damageInvincibleTimer = 60; // 1 second invincibility
+                    player.damageInvincibleTimer = 60; 
+                    playSound('hit');
                 } 
                 if(!player.invincible && player.damageInvincibleTimer > 0) createParticle(p.x, p.y, COLORS.player, 'boom'); 
                 hit = true; 
                 if (playerStats.hp <= 0) gameOver(); 
             }
         }
-        if (hit && (!p.behavior || (p.behavior.type !== 'SHOCKWAVE' && p.behavior.type !== 'BLACKHOLE' && p.behavior.type !== 'ORBIT_SHOT' && p.behavior.type !== 'LASER_BEAM_ROT'))) projectiles.splice(i, 1);
+        if (hit && (!p.behavior || (p.behavior.type !== 'SHOCKWAVE' && p.behavior.type !== 'BLACKHOLE' && p.behavior.type !== 'ORBIT_SHOT' && p.behavior.type !== 'LASER_BEAM_ROT' && p.behavior.type !== 'TRACE'))) projectiles.splice(i, 1);
     }
     
-    // Boss Body Hit Check (Except during specific moves)
     if (!['JUMP_UP', 'JUMP_WAIT', 'JUMP_LOCK', 'JUMP_LAND', 'VANISH_WAIT', 'VANISH_LOCK', 'VANISH_FALL'].includes(boss.state)) {
         let d = dist(player.x, player.y, boss.x, boss.y);
         if (d < boss.size/2 + 10) {
@@ -1440,6 +1685,7 @@ function checkCollisions() {
                 playerStats.hp -= dmg;
                 player.shakeTimer = 10;
                 player.damageInvincibleTimer = 60;
+                playSound('hit');
             }
         }
     }
@@ -1449,10 +1695,10 @@ function checkCollisions() {
             let d = dist(player.x, player.y, f.x, f.y);
             if (d < f.r) { let angle = atan2(f.y - player.y, f.x - player.x); let force = 2.0; player.x += cos(angle) * force; player.y += sin(angle) * force; }
         }
-        else if (f.type === 'f_hazard_rect') { if(player.x > f.x-f.w/2 && player.x < f.x+f.w/2 && player.y > f.y-f.h/2 && player.y < f.y+f.h/2 && !player.invincible && player.damageInvincibleTimer <= 0) { playerStats.hp -= 2; player.shakeTimer = 10; } }
+        else if (f.type === 'f_hazard_rect') { if(player.x > f.x-f.w/2 && player.x < f.x+f.w/2 && player.y > f.y-f.h/2 && player.y < f.y+f.h/2 && !player.invincible && player.damageInvincibleTimer <= 0) { playerStats.hp -= 2; player.shakeTimer = 10; playSound('hit'); } }
         else if (f.type === 'f_hazard_cross') {
             let rx = player.x-f.x; let ry = player.y-f.y; let rotX = rx*cos(-f.angle)-ry*sin(-f.angle); let rotY = rx*sin(-f.angle)+ry*cos(-f.angle);
-            if((abs(rotX)<20 || abs(rotY)<20) && !player.invincible && player.damageInvincibleTimer <= 0) { playerStats.hp -= 2; player.shakeTimer = 10; }
+            if((abs(rotX)<20 || abs(rotY)<20) && !player.invincible && player.damageInvincibleTimer <= 0) { playerStats.hp -= 2; player.shakeTimer = 10; playSound('hit'); }
         }
     }
 }
@@ -1460,6 +1706,9 @@ function checkCollisions() {
 // --- GAME FLOW CONTROL ---
 
 function startGame() {
+    SoundManager.init(); // INITIALIZE AUDIO
+    SoundManager.playBGM('bgm_design'); // Start Design BGM
+    playSound('ui');
     gameState = 'DESIGN';
     ownedGlyphIds = ['a_bullet', 'm_chase', 'f_bomb', 'a_spread'];
     bossConfig = [getGlyphById('a_bullet'), getGlyphById('m_chase')];
@@ -1469,11 +1718,15 @@ function startGame() {
 }
 
 function confirmBoss() {
+    playSound('ui');
     if (bossConfig.length === 0) return;
     let hasA = bossConfig.some(g => g.type === 'A'); let hasM = bossConfig.some(g => g.type === 'M');
     if (!hasA || !hasM) { document.getElementById('design-error').innerText = "ERROR: 攻撃(A)と行動(M)が最低1つずつ必要です"; return; }
+    
+    SoundManager.playBGM('bgm_battle'); // Switch to Battle BGM
+    
     gameState = 'BATTLE'; switchScreen(null); document.getElementById('hud').style.display = 'block';
-    initPlayer(); initBoss(); projectiles = []; fields = []; obstacles = []; 
+    initPlayer(); initBoss(); projectiles = []; fields = []; 
     document.getElementById('wave-info').innerText = "MODULES: " + new Set(bossConfig.map(g=>g.id)).size;
     document.getElementById('dash-container').style.opacity = '1'; 
     hideTooltip();
@@ -1481,10 +1734,7 @@ function confirmBoss() {
 
 function killBoss() {
     let uniqueCount = new Set(bossConfig.map(g => g.id)).size;
-    
-    // --- FIX: Cap SP at 5 ---
     gainedSP = Math.min(5, Math.floor(uniqueCount * 1.5)); 
-    
     currentSP += gainedSP;
     if(document.getElementById('player-sp-skill')) document.getElementById('player-sp-skill').innerText = currentSP;
     if(document.getElementById('current-sp-display')) document.getElementById('current-sp-display').innerText = currentSP;
@@ -1503,7 +1753,6 @@ function nextFloor() {
     hideTooltip();
 }
 
-// --- REWARD PHASES ---
 function setupSkillTreePhase() { 
     gameState = 'SKILL_SELECT'; switchScreen('screen-skill'); updateSkillTreeUI(); 
     hideTooltip();
@@ -1517,6 +1766,7 @@ function updateSkillTreeUI() {
         btn.innerHTML = `<div class="flex justify-between w-full"><span class="font-bold ${isMax ? 'text-green-400' : 'text-yellow-400'}">${skill.name}</span><span class="text-xs text-white">Lv.${skill.currentLvl}/${skill.maxLvl}</span></div><div class="text-xs text-gray-400">${skill.desc}</div><div class="text-right text-sm font-bold ${canAfford ? 'text-cyan-400' : 'text-red-400'}">Cost: ${skill.cost} SP</div>`;
         btn.onclick = () => {
             if(!isMax && canAfford) {
+                playSound('ui');
                 currentSP -= skill.cost; skill.currentLvl++; skill.apply(skill.currentLvl);
                 if(document.getElementById('player-sp-skill')) document.getElementById('player-sp-skill').innerText = currentSP;
                 if(document.getElementById('current-sp-display')) document.getElementById('current-sp-display').innerText = currentSP;
@@ -1528,17 +1778,16 @@ function updateSkillTreeUI() {
 }
 
 function setupLootPhase() {
+    SoundManager.playBGM('bgm_design'); // Back to Design BGM
     gameState = 'LOOT_VIEW'; 
     switchScreen('screen-loot');
-    hideTooltip(); // Tooltip clear
+    hideTooltip(); 
     
     let div = document.getElementById('loot-display'); 
     div.innerHTML = '';
     
-    // Config Picks
     let moduleCount = bossConfig.length;
     lootPicksRemaining = moduleCount > 10 ? 2 : 1;
-    
     updateLootMessage();
 
     let unowned = GLYPH_DB.filter(g => !ownedGlyphIds.includes(g.id));
@@ -1564,16 +1813,11 @@ function setupLootPhase() {
         
         span.onclick = () => { 
             if(span.classList.contains('disabled')) return;
-            
-            // Acquire
             ownedGlyphIds.push(d.id); 
-            
-            // Feedback
+            playSound('powerup');
             span.classList.add('disabled', 'equipped');
             span.innerHTML += '<div class="equipped-badge">GET</div>';
-            
             lootPicksRemaining--;
-            
             if (lootPicksRemaining <= 0) {
                 setTimeout(() => setupSkillTreePhase(), 500); 
             } else {
@@ -1581,6 +1825,7 @@ function setupLootPhase() {
             }
         };
         span.onmousemove = (e) => showTooltip(d.desc, e.clientX, e.clientY, d.name, d.type);
+        span.onmouseenter = () => playSound('ui'); // FIXED: Sound on enter
         span.onmouseleave = () => hideTooltip(); div.appendChild(span);
     });
 }
@@ -1595,9 +1840,7 @@ function updateLootMessage() {
 }
 
 function finishLootPhase() { nextFloor(); }
-function getGlyphById(id) { return {...GLYPH_DB.find(g => g.id === id)}; }
 
-// --- UI LOGIC ---
 function switchScreen(id) { 
     hideTooltip();
     document.querySelectorAll('.screen').forEach(el => el.classList.remove('active')); 
@@ -1622,13 +1865,12 @@ function updateDesignUI() {
         div.className = `glyph-card p-1 text-xs glyph-${item.type} ${isSet ? 'equipped' : ''}`;
         div.innerHTML = `<div class="font-bold text-3xl mt-1">${item.type}</div><div class="text-[9px] mt-auto w-full truncate px-1">${item.name}</div>`;
         if(isSet) div.innerHTML += '<div class="equipped-badge">SET</div>';
-        
-        div.onclick = () => { bossConfig.push(item); updateDesignUI(); };
+        div.onclick = () => { playSound('ui'); bossConfig.push(item); updateDesignUI(); };
         div.onmousemove = (e) => showTooltip(item.desc, e.clientX, e.clientY, item.name, item.type);
+        div.onmouseenter = () => playSound('ui'); // FIXED: Sound on enter
         div.onmouseleave = () => hideTooltip(); invDiv.appendChild(div);
     });
     
-    // Clear slots
     document.getElementById('slots-a').innerHTML = '';
     document.getElementById('slots-m').innerHTML = '';
     document.getElementById('slots-f').innerHTML = '';
@@ -1642,20 +1884,19 @@ function updateDesignUI() {
             let div = document.createElement('div'); 
             div.className = `glyph-card p-1 text-xs glyph-${item.type} w-10 h-10 min-w-[40px]`; 
             div.innerHTML = `<div class="font-bold text-lg">${item.type}</div><div class="absolute top-0 right-0 text-red-500 font-bold text-[8px] leading-none p-0.5 cursor-pointer">×</div>`;
-            div.onclick = () => { bossConfig.splice(idx, 1); updateDesignUI(); };
+            div.onclick = () => { playSound('ui'); bossConfig.splice(idx, 1); updateDesignUI(); };
             div.onmousemove = (e) => showTooltip(item.desc, e.clientX, e.clientY, item.name, item.type);
+            div.onmouseenter = () => playSound('ui'); // FIXED: Sound on enter
             div.onmouseleave = () => hideTooltip(); 
             targetContainer.appendChild(div);
         }
     });
 
     let uniqueGlyphs = new Set(bossConfig.map(g => g.id));
-    let count = uniqueGlyphs.size; // UNIQUE COUNT
+    let count = uniqueGlyphs.size; 
     document.getElementById('stat-count').innerText = count;
     document.getElementById('stat-hp').innerText = `x${(1.0 + count*0.15).toFixed(2)}`;
     let cdRed = Math.min(50, count * 5); document.getElementById('stat-cd').innerText = `${cdRed}%`;
-    
-    // --- FIX: Cap SP display at 5 ---
     let spPredict = Math.min(5, Math.floor(count * 1.5)); 
     document.getElementById('stat-drop').innerText = `${spPredict} SP`;
     
@@ -1665,13 +1906,15 @@ function updateDesignUI() {
     else { btn.disabled = true; btn.classList.add('opacity-50', 'cursor-not-allowed'); }
 }
 function backToDesign() { 
+    playSound('ui');
     gameState = 'DESIGN'; 
     updateDesignUI(); 
     switchScreen('screen-design'); 
 }
-function openSkillTree() { gameState = 'SKILL_SELECT'; switchScreen('screen-skill'); updateSkillTreeUI(); }
-function moveToBoss(invIdx) {} function returnToInventory(bossIdx) {}
+function openSkillTree() { playSound('ui'); gameState = 'SKILL_SELECT'; switchScreen('screen-skill'); updateSkillTreeUI(); }
 function retryGame() {
+    SoundManager.playBGM('bgm_design'); // Back to Design BGM
+    playSound('ui');
     projectiles = []; fields = []; particles = []; boss = null; player = null;
     gameState = 'DESIGN'; updateDesignUI(); switchScreen('screen-design');
 }
