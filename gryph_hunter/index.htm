@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Glyph Boss Hunter - Synth Edition v8.1</title>
+    <title>Glyph Boss Hunter - God Update v6.2</title>
     <!-- p5.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
     <!-- Tailwind CSS -->
@@ -94,6 +94,14 @@
         .glyph-M { color: #4dff88; border-color: rgba(77, 255, 136, 0.5); } 
         .glyph-S { color: #d94dff; border-color: rgba(217, 77, 255, 0.5); } 
         .glyph-F { color: #ffaa4d; border-color: rgba(255, 170, 77, 0.5); }
+        
+        /* GOD MODE STYLE */
+        .glyph-GOD { 
+            color: #ffd700; 
+            border-color: #ffd700; 
+            background: linear-gradient(135deg, #2a2000, #000);
+            box-shadow: 0 0 15px #ffd700;
+        }
 
         .slot-bar-container { margin-bottom: 8px; }
         .slot-bar-label { font-size: 10px; font-weight: bold; margin-bottom: 2px; padding-left: 4px; display: flex; justify-content: space-between; text-shadow: 0 0 2px currentColor; }
@@ -306,12 +314,8 @@
 
 <script>
 /**
- * GLYPH BOSS HUNTER - Synth Edition v8.1
- * Changes:
- * - Removed Invincibility Frame Upgrade.
- * - Stopped suction on NOVA_CYCLE (implode) end.
- * - Removed ASSAULT_DASH and AUTO_TURRET.
- * - Modified STRAFE_RUN to perform random 1-3 passes.
+ * GLYPH BOSS HUNTER - God Update v6.2
+ * - REMOVED: VELOCITY_UP (s_fast) from Database
  */
 
 // --- BGM ASSET CONFIGURATION ---
@@ -320,40 +324,39 @@ const BGM_ASSETS = {
     battle: 'remote.mp3'    // Battle Screen BGM
 };
 
-// --- SOUND MANAGER (SYNTHESIZED) ---
+// --- SOUND MANAGER ---
 const SoundManager = {
     ctx: null,
     bgmGain: null,
     seGain: null,
-    
-    // BGM State
     currentBgmSource: null,
     currentBgmKey: null,
     bgmBuffers: {},
-    
-    // Config
     bgmVolume: 0.3,
     seVolume: 0.4,
+    noiseBuffer: null, 
     
     init: function() {
         if (this.ctx) return;
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        this.ctx = new AudioContext();
-        
-        // Create Gain Nodes
-        this.bgmGain = this.ctx.createGain();
-        this.bgmGain.gain.value = this.bgmVolume;
-        this.bgmGain.connect(this.ctx.destination);
-        
-        this.seGain = this.ctx.createGain();
-        this.seGain.gain.value = this.seVolume;
-        this.seGain.connect(this.ctx.destination);
-        
-        this.loadAssets();
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.ctx = new AudioContext();
+            
+            this.bgmGain = this.ctx.createGain();
+            this.bgmGain.gain.value = this.bgmVolume;
+            this.bgmGain.connect(this.ctx.destination);
+            
+            this.seGain = this.ctx.createGain();
+            this.seGain.gain.value = this.seVolume;
+            this.seGain.connect(this.ctx.destination);
+            
+            this.loadAssets();
+        } catch(e) {
+            console.error("Audio init failed:", e);
+        }
     },
     
     loadAssets: async function() {
-        // Load BGM (Optional)
         for (const [key, path] of Object.entries(BGM_ASSETS)) {
             try {
                 const res = await fetch(path);
@@ -361,161 +364,137 @@ const SoundManager = {
                     const buf = await res.arrayBuffer();
                     this.bgmBuffers[key] = await this.ctx.decodeAudioData(buf);
                 }
-            } catch (e) {
-                // Ignore missing files for BGM, silence is fine or could synth BGM later
-            }
+            } catch (e) { }
         }
     },
 
     playBGM: function(key) {
         if (!this.ctx) return;
-        if (this.ctx.state === 'suspended') this.ctx.resume(); // Ensure context is running
-
-        // If same BGM requested, do nothing
+        if (this.ctx.state === 'suspended') this.ctx.resume().catch(e => console.log(e));
         if (this.currentBgmKey === key && this.currentBgmSource) return;
-        
-        // Stop current
         this.stopBGM();
-        
         const buffer = this.bgmBuffers[key];
-        if (!buffer) return; // Silent if not loaded
+        if (!buffer) return;
         
         this.currentBgmKey = key;
-        const source = this.ctx.createBufferSource();
-        source.buffer = buffer;
-        source.loop = true;
-        
-        // Simple fade-in
-        this.bgmGain.gain.cancelScheduledValues(this.ctx.currentTime);
-        this.bgmGain.gain.setValueAtTime(0, this.ctx.currentTime);
-        this.bgmGain.gain.linearRampToValueAtTime(this.bgmVolume, this.ctx.currentTime + 0.5);
-        
-        source.connect(this.bgmGain);
-        source.start(0);
-        this.currentBgmSource = source;
+        try {
+            const source = this.ctx.createBufferSource();
+            source.buffer = buffer;
+            source.loop = true;
+            
+            this.bgmGain.gain.cancelScheduledValues(this.ctx.currentTime);
+            this.bgmGain.gain.setValueAtTime(0, this.ctx.currentTime);
+            this.bgmGain.gain.linearRampToValueAtTime(this.bgmVolume, this.ctx.currentTime + 0.5);
+            
+            source.connect(this.bgmGain);
+            source.start(0);
+            this.currentBgmSource = source;
+        } catch(e) { console.warn("BGM Play Error", e); }
     },
     
     stopBGM: function() {
         if (this.currentBgmSource) {
-            try {
-                this.currentBgmSource.stop();
-            } catch(e) {}
+            try { this.currentBgmSource.stop(); } catch(e) {}
             this.currentBgmSource = null;
             this.currentBgmKey = null;
         }
     },
 
-    // --- SYNTHESIZED SOUND EFFECTS ---
     playSE: function(type) {
         if (!this.ctx) return;
-        if (this.ctx.state === 'suspended') this.ctx.resume();
+        if (this.ctx.state === 'suspended') this.ctx.resume().catch(e => console.log(e));
 
-        const t = this.ctx.currentTime;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        
-        osc.connect(gain);
-        gain.connect(this.seGain);
+        try {
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.connect(gain);
+            gain.connect(this.seGain);
 
-        if (type === 'shoot') {
-            // Player Shoot: Sharp Square wave drop (Pew!)
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(880, t);
-            osc.frequency.exponentialRampToValueAtTime(110, t + 0.15);
-            gain.gain.setValueAtTime(0.2, t);
-            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
-            osc.start(t);
-            osc.stop(t + 0.15);
-
-        } else if (type === 'boss_shoot') {
-            // Boss Shoot: Heavy Sawtooth (Vwoom)
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(330, t);
-            osc.frequency.linearRampToValueAtTime(55, t + 0.25);
-            gain.gain.setValueAtTime(0.2, t);
-            gain.gain.linearRampToValueAtTime(0.01, t + 0.25);
-            osc.start(t);
-            osc.stop(t + 0.25);
-
-        } else if (type === 'hit') {
-            // Boss Hit: Metallic Ping (Kaching!)
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(1500, t);
-            osc.frequency.exponentialRampToValueAtTime(800, t + 0.05);
-            gain.gain.setValueAtTime(0.15, t);
-            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
-            osc.start(t);
-            osc.stop(t + 0.05);
-
-        } else if (type === 'player_hit') {
-            // Player Damage: Low noise/crunch (Oof!)
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(150, t);
-            osc.frequency.linearRampToValueAtTime(50, t + 0.15);
-            
-            // Add some noise modulation manually via multiple oscillators if needed, but simplified here:
-            const osc2 = this.ctx.createOscillator();
-            osc2.type = 'square';
-            osc2.frequency.setValueAtTime(100, t);
-            osc2.connect(gain);
-            osc2.start(t);
-            osc2.stop(t + 0.15);
-
-            gain.gain.setValueAtTime(0.3, t);
-            gain.gain.linearRampToValueAtTime(0.01, t + 0.15);
-            osc.start(t);
-            osc.stop(t + 0.15);
-
-        } else if (type === 'boom') {
-            // Explosion: Noise Burst (Krak-boom!)
-            this.createExplosionSound(0.4);
-
-        } else if (type === 'ui') {
-            // UI Click: High blip (Pip!)
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(1800, t);
-            gain.gain.setValueAtTime(0.1, t);
-            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
-            osc.start(t);
-            osc.stop(t + 0.05);
-
-        } else if (type === 'powerup') {
-            // Powerup: Rising slide (Schwing!)
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(440, t);
-            osc.frequency.linearRampToValueAtTime(880, t + 0.2);
-            gain.gain.setValueAtTime(0.1, t);
-            gain.gain.linearRampToValueAtTime(0.01, t + 0.2);
-            osc.start(t);
-            osc.stop(t + 0.2);
-        }
+            if (type === 'shoot') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(880, t);
+                osc.frequency.exponentialRampToValueAtTime(110, t + 0.15);
+                gain.gain.setValueAtTime(0.2, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+                osc.start(t); osc.stop(t + 0.15);
+            } else if (type === 'boss_shoot') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(330, t);
+                osc.frequency.linearRampToValueAtTime(55, t + 0.25);
+                gain.gain.setValueAtTime(0.2, t);
+                gain.gain.linearRampToValueAtTime(0.01, t + 0.25);
+                osc.start(t); osc.stop(t + 0.25);
+            } else if (type === 'hit') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(1500, t);
+                osc.frequency.exponentialRampToValueAtTime(800, t + 0.05);
+                gain.gain.setValueAtTime(0.15, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
+                osc.start(t); osc.stop(t + 0.05);
+            } else if (type === 'player_hit') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, t);
+                osc.frequency.linearRampToValueAtTime(50, t + 0.15);
+                gain.gain.setValueAtTime(0.3, t);
+                gain.gain.linearRampToValueAtTime(0.01, t + 0.15);
+                osc.start(t); osc.stop(t + 0.15);
+            } else if (type === 'boom') {
+                this.createExplosionSound(0.4);
+            } else if (type === 'ui') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1800, t);
+                gain.gain.setValueAtTime(0.1, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
+                osc.start(t); osc.stop(t + 0.05);
+            } else if (type === 'powerup') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(440, t);
+                osc.frequency.linearRampToValueAtTime(880, t + 0.2);
+                gain.gain.setValueAtTime(0.1, t);
+                gain.gain.linearRampToValueAtTime(0.01, t + 0.2);
+                osc.start(t); osc.stop(t + 0.2);
+            } else if (type === 'god_roar') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(50, t);
+                osc.frequency.linearRampToValueAtTime(800, t + 1.5);
+                gain.gain.setValueAtTime(0.0, t);
+                gain.gain.linearRampToValueAtTime(0.5, t + 0.5);
+                gain.gain.linearRampToValueAtTime(0.0, t + 1.5);
+                osc.start(t); osc.stop(t + 1.5);
+                this.createExplosionSound(1.5);
+            }
+        } catch(e) { console.warn("Audio Play Error", e); }
     },
     
-    // Special Noise Generator for Explosions
     createExplosionSound: function(duration) {
-        const bufferSize = this.ctx.sampleRate * duration;
-        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = Math.random() * 2 - 1;
-        }
-        
-        const noise = this.ctx.createBufferSource();
-        noise.buffer = buffer;
-        
-        const filter = this.ctx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(800, this.ctx.currentTime);
-        filter.frequency.exponentialRampToValueAtTime(50, this.ctx.currentTime + duration);
+        if (!this.ctx) return;
+        try {
+            let buffer;
+            if (duration === 0.4 && this.noiseBuffer) {
+                buffer = this.noiseBuffer;
+            } else {
+                const bufferSize = this.ctx.sampleRate * duration;
+                buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                if (duration === 0.4) this.noiseBuffer = buffer;
+            }
 
-        const gain = this.ctx.createGain();
-        gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
-        
-        noise.connect(filter);
-        filter.connect(gain);
-        gain.connect(this.seGain);
-        noise.start();
+            const noise = this.ctx.createBufferSource();
+            noise.buffer = buffer;
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(800, this.ctx.currentTime);
+            filter.frequency.exponentialRampToValueAtTime(50, this.ctx.currentTime + duration);
+            const gain = this.ctx.createGain();
+            gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.seGain);
+            noise.start();
+        } catch(e) { console.warn("Explosion Error", e); }
     },
     
     setBGMVolume: function(val) {
@@ -525,14 +504,12 @@ const SoundManager = {
             this.bgmGain.gain.setValueAtTime(this.bgmVolume, this.ctx.currentTime);
         }
     },
-
     setSEVolume: function(val) {
         this.seVolume = parseFloat(val);
         if(this.seGain) this.seGain.gain.value = this.seVolume;
     }
 };
 
-// Global Interface
 function updateBGMVolume(val) { SoundManager.setBGMVolume(val); }
 function updateSEVolume(val) { SoundManager.setSEVolume(val); }
 function playSound(type) { SoundManager.playSE(type); }
@@ -551,6 +528,7 @@ const COLORS = {
     boss: '#ff0055',
     bossCore: '#ff0055',
     bossRage: '#ff0000',
+    bossGod: '#ffd700', // God Mode Color
     bulletPlayer: '#00ffff',
     bulletBoss: '#ff0055',
     bulletHoming: '#aa00ff',
@@ -560,49 +538,32 @@ const COLORS = {
     field: '#ffaa00',
     obstacle: '#888',
     suction: '#a0a',
-    blackhole: '#303'
+    godLight: '#ffea00' // God Mode Attack Color
 };
 
-// --- GAME STATE ---
 let gameState = 'TITLE'; 
 let gameFloor = 1; 
 let victoryTimer = 0;
 let shakeAmount = 0;
 
-// --- ENTITIES ---
 let player;
 let boss;
 let projectiles = [];
 let particles = [];
 let fields = []; 
 
-// --- DATA ---
 let ownedGlyphIds = []; 
 let bossConfig = []; 
 let currentSP = 0;
 let gainedSP = 0;
 let lootPicksRemaining = 1; 
+let debugGodMode = false; // New Debug Flag
 
 let playerStats = {
-    maxHp: 100,
-    hp: 100,
-    speed: 4,
-    fireRate: 15, 
-    damage: 10,
-    bulletSpeed: 8,
-    weaponType: 'NORMAL',
-    weaponName: '初期ハンドガン',
-    dashMaxCharges: 1, 
-    dashCooldownMax: 180,
-    dashInvincibleFrame: 15
+    maxHp: 100, hp: 100, speed: 4, fireRate: 15, damage: 10, bulletSpeed: 8,
+    dashMaxCharges: 1, dashCooldownMax: 180, dashInvincibleFrame: 15
 };
 
-let bossSettings = {
-    hpMult: 1.0,
-    atkMult: 1.0
-};
-
-// --- MODIFIED SKILL TREE (Removed INV_TIME) ---
 const SKILL_TREE = [
     { id: 'HP', name: 'CORE_INTEGRITY', desc: '最大HP+10', cost: 1, maxLvl: 10, currentLvl: 0, apply: (lvl) => playerStats.maxHp = 100 + (lvl * 10) },
     { id: 'DASH_CNT', name: 'BOOSTER_CAPACITY', desc: '回避回数+1', cost: 5, maxLvl: 3, currentLvl: 0, apply: (lvl) => playerStats.dashMaxCharges = 1 + lvl },
@@ -610,14 +571,13 @@ const SKILL_TREE = [
     { id: 'DASH_CD', name: 'BOOSTER_RECHARGE', desc: '回避CT短縮', cost: 3, maxLvl: 5, currentLvl: 0, apply: (lvl) => playerStats.dashCooldownMax = 180 - (lvl * 12) }
 ];
 
-// --- MODIFIED GLYPH DB (Removed m_dash, s_turret. Updated m_trail) ---
 const GLYPH_DB = [
     { id: 'a_bullet', type: 'A', tier: 1, name: 'SINGLE_SHOT', desc: '標準的な弾をボスの正面に発射する。', weight: 1.0 },
     { id: 'a_spread', type: 'A', tier: 1, name: 'TRI_SPREAD', desc: '扇状に3発の弾を拡散発射する。', weight: 1.2 },
     { id: 'a_5way',   type: 'A', tier: 1, name: 'PENTA_SPREAD', desc: '扇状に5発の弾を拡散発射する。', weight: 1.3 }, 
     { id: 'm_chase',  type: 'M', tier: 1, name: 'CHASE_AI', desc: 'プレイヤーの位置へゆっくりと近づく。', weight: 1.0 },
     { id: 'f_bomb',   type: 'F', tier: 1, name: 'BOMB_RAID', desc: 'プレイヤーの周囲に円形爆撃を行う。', weight: 1.5 },
-    { id: 's_fast',   type: 'S', tier: 1, name: 'VELOCITY_UP', desc: 'ボスの弾速が1.3倍になる。', weight: 1.5 }, 
+    // VELOCITY_UP (s_fast) REMOVED
     { id: 's_tough',  type: 'S', tier: 1, name: 'ARMOR_PLATE', desc: 'ボスのHPが増加する。', weight: 1.5 }, 
     { id: 'a_circle',   type: 'A', tier: 2, name: 'OMNI_BURST', desc: '周囲360度へ弾をばら撒く。', weight: 1.5 },
     { id: 'a_sniper',   type: 'A', tier: 2, name: 'RAILGUN', desc: '弾速の速い、高威力の一撃を放つ。', weight: 1.5 },
@@ -652,7 +612,9 @@ const GLYPH_DB = [
     { id: 'm_stalker',  type: 'M', tier: 3, name: 'SHADOW_STEP', desc: '一瞬でプレイヤーの背後に回り込む。', weight: 2.5 }, 
     { id: 'm_shadow_rush',type: 'M',tier: 3, name: 'SHADOW_RUSH', desc: '周囲を高速旋回し撹乱した後、停止する。', weight: 2.5 }, 
     { id: 's_barrier',  type: 'S', tier: 3, name: 'I_FIELD', desc: '5回まで弾を防ぐバリアを展開する。破壊後、再展開。', weight: 3.0 }, 
-    { id: 's_funnel',   type: 'S', tier: 3, name: 'DRONE_UNIT', desc: '自動攻撃を行う破壊可能なビットを展開する。', weight: 3.0 } 
+    { id: 's_funnel',   type: 'S', tier: 3, name: 'DRONE_UNIT', desc: '自動攻撃を行う破壊可能なビットを展開する。', weight: 3.0 },
+    // --- GOD MODE GLYPH ---
+    { id: 's_god',      type: 'GOD', tier: 4, name: 'DEUS_EX', desc: '【神化】全知全能。全ての制御権を掌握し、姿と行動を変容させる。', weight: 0.0 }
 ];
 
 function getGlyphById(id) {
@@ -710,6 +672,21 @@ function updateGameDims() {
     let container = document.getElementById('game-container');
     container.style.width = `${newWidth}px`;
     container.style.height = `${newHeight}px`;
+}
+
+// --- KEY EVENT FOR DEBUG ---
+function keyPressed() {
+    // STEALTH DEBUG COMMAND: 'G' key on Title Screen unlocks all glyphs including GOD
+    if (gameState === 'TITLE' && (key === 'g' || key === 'G')) {
+        debugGodMode = true; // Set Flag
+        ownedGlyphIds = GLYPH_DB.map(g => g.id);
+        playSound('god_roar');
+        console.log(">> DEBUG: GOD MODE UNLOCKED");
+        // Flash effect
+        let titleScreen = document.getElementById('screen-title');
+        titleScreen.style.backgroundColor = '#222';
+        setTimeout(() => titleScreen.style.backgroundColor = 'rgba(0,0,0,0.8)', 100);
+    }
 }
 
 // --- MAIN LOOP ---
@@ -793,18 +770,27 @@ function drawBossTelegraph() {
         else stroke(255, 0, 0);
         ellipse(boss.dropTargetX, player.y, 40, 40);
     }
-
-    if (boss.state === 'CHARGE' && boss.currentAttack) {
+    else if (boss.state === 'CHARGE' && boss.currentAttack) {
          let atk = boss.currentAttack.id; let t = (frameCount % 20) / 20; 
+         let chargeColor = boss.isGodMode ? [255, 230, 0] : [255, 50, 50];
          push(); translate(boss.x, boss.y); strokeWeight(2);
-         let alpha = map(sin(frameCount * 0.5), -1, 1, 50, 200); stroke(255, 50, 50, alpha); noFill();
+         let alpha = map(sin(frameCount * 0.5), -1, 1, 50, 200); stroke(chargeColor[0], chargeColor[1], chargeColor[2], alpha); noFill();
          let angle = atan2(player.y - boss.y, player.x - boss.x);
-         if (atk === 'a_laser') { rotate(angle); fill(255, 0, 0, 50); rect(0, -10, 1000, 20); } 
+         
+         if (atk === 'a_god_light' || atk === 'a_god_surround') {
+             stroke(255, 255, 0);
+             // Sky gathering effect
+             for(let i=0; i<3; i++) {
+                 let r = random(50, 150);
+                 let a = random(TWO_PI);
+                 line(cos(a)*r, sin(a)*r, 0, 0);
+             }
+         }
+         else if (atk === 'a_laser') { rotate(angle); fill(255, 0, 0, 50); rect(0, -10, 1000, 20); } 
          else if (atk === 'a_sniper' || atk === 'a_nuke' || atk === 'a_charge_shot') { rotate(angle); stroke(255, 0, 0, alpha); line(0, 0, 1000, 0); if(atk === 'a_nuke') ellipse(0,0,50,50); } 
-         else if (['a_circle','a_spiral','a_freeze','a_homing','a_wave','a_split','a_cutter','a_cluster','a_orbit_shot','a_mine_scatter','a_implode'].includes(atk)) { ellipse(0, 0, boss.size * 3 + (t * 50)); } 
+         else if (['a_circle','a_spiral','a_freeze','a_homing','a_wave','a_split','a_cutter','a_cluster','a_orbit_shot','a_mine_scatter','a_implode', 'a_god_wipe'].includes(atk)) { ellipse(0, 0, boss.size * 3 + (t * 50)); } 
          else if (atk === 'a_spread') { rotate(angle); line(0, 0, 200, -60); line(0, 0, 200, 60); arc(0,0, 200, 200, -0.3, 0.3); } 
          else if (atk === 'a_5way') { rotate(angle); for(let a of [-0.4,-0.2,0,0.2,0.4]) line(0,0,200*cos(a),200*sin(a)); } 
-         else if (atk === 'a_cross') { line(-100, 0, 100, 0); line(0, -100, 0, 100); } 
          else { rotate(angle); line(0,0, 100, 0); }
          pop();
     }
@@ -815,6 +801,9 @@ function createParticle(x, y, color, type, size=5) {
     let vx = random(-3, 3);
     let vy = random(-3, 3);
     if (type === 'suction_part') { vx = 0; vy = 0; }
+    if (type === 'god_aura') { vx = random(-1, 1); vy = random(-3, -1); }
+    if (type === 'god_feather') { vx = random(-2, 2); vy = random(1, 3); }
+    if (type === 'god_afterimage') { vx = 0; vy = 0; }
     particles.push({x: x, y: y, color: color, life: 1.0, type: type, vx: vx, vy: vy, size: size});
 }
 function createGlitchEffect(x, y, count=20) {
@@ -836,10 +825,26 @@ function updateParticles() {
             p.x += cos(a) * 8;
             p.y += sin(a) * 8;
             if (dist(p.x, p.y, player.x, player.y) < 20) p.life = 0; 
+        } else if (p.type === 'god_feather') {
+             p.x += sin(frameCount * 0.1 + p.y * 0.05) * 2; 
+             p.y += p.vy;
+             p.life -= 0.02;
+        } else if (p.type === 'god_afterimage') {
+             p.life -= 0.05; // Fade out
+             // Damage check for afterimage
+             if (p.life > 0.5 && dist(player.x, player.y, p.x, p.y) < p.size/2) {
+                 if(!player.invincible && player.damageInvincibleTimer <= 0) {
+                    playerStats.hp -= 5; 
+                    player.shakeTimer = 10;
+                    player.damageInvincibleTimer = 30; 
+                    playSound('player_hit');
+                }
+             }
         } else {
             p.x += p.vx; p.y += p.vy; 
         }
-        p.life -= 0.05; 
+        if (p.type !== 'god_feather' && p.type !== 'god_afterimage') p.life -= 0.05; 
+        
         if (p.life <= 0) particles.splice(i, 1);
     }
 }
@@ -849,6 +854,20 @@ function drawParticles() {
         let c = color(p.color); c.setAlpha(p.life * 255); fill(c); 
         if (p.type === 'boom') { rectMode(CENTER); rect(p.x, p.y, p.size * p.life, p.size * p.life); } 
         else if (p.type === 'noise') { rectMode(CENTER); rect(p.x, p.y, p.w, p.h); }
+        else if (p.type === 'god_feather') { 
+            push(); translate(p.x, p.y); rotate(sin(frameCount*0.2)); 
+            ellipse(0, 0, p.size, p.size*3); 
+            pop(); 
+        }
+        else if (p.type === 'god_afterimage') {
+            push(); translate(p.x, p.y);
+            rectMode(CENTER);
+            noFill(); stroke(255, 235, 0, p.life * 200); strokeWeight(2);
+            rect(0, 0, p.size, p.size);
+            fill(255, 235, 0, p.life * 100);
+            rect(0, 0, p.size * 0.8, p.size * 0.8);
+            pop();
+        }
         else ellipse(p.x, p.y, p.size, p.size); 
     }
 }
@@ -917,12 +936,36 @@ function initBoss() {
     let hpMult = 1.0 + (glyphCount * 0.15); let cdReduction = constrain(glyphCount * 0.05, 0, 0.5); 
     let damageMult = 1.0; 
     
-    let attacks = bossConfig.filter(g => g.type === 'A'); let moves = bossConfig.filter(g => g.type === 'M');
-    let fields = bossConfig.filter(g => g.type === 'F'); let specials = bossConfig.filter(g => g.type === 'S');
-    if (attacks.length === 0) attacks.push(getGlyphById('a_bullet')); if (moves.length === 0) moves.push(getGlyphById('m_chase'));
+    // SAFEGUARD: Explicitly include GOD type in filters to prevent logic gaps
+    let attacks = bossConfig.filter(g => g.type === 'A'); 
+    let moves = bossConfig.filter(g => g.type === 'M');
+    let fields = bossConfig.filter(g => g.type === 'F'); 
+    let specials = bossConfig.filter(g => g.type === 'S' || g.type === 'GOD');
+    
+    if (attacks.length === 0) attacks.push(getGlyphById('a_bullet')); 
+    if (moves.length === 0) moves.push(getGlyphById('m_chase'));
+    
     let bulletSpeedMult = specials.some(g => g.id === 's_fast') ? 1.3 : 1.0;
     let hasRage = bossConfig.some(g => g.id === 's_rage'); let hasDouble = bossConfig.some(g => g.id === 's_double');
     
+    // GOD MODE CHECK
+    let isGodMode = bossConfig.some(g => g.id === 's_god');
+    
+    if (isGodMode) {
+        damageMult *= 1.5;
+        // EXISTING GOD ACTIONS
+        attacks.push({id: 'a_god_light', type: 'A', name: 'HEAVEN\'S FALL'});
+        attacks.push({id: 'a_god_wipe', type: 'A', name: 'DIVINE CROSS'}); 
+        moves.push({id: 'm_god_blink', type: 'M', name: 'OMNI_BLINK'});
+        
+        // --- NEW GOD ACTIONS (v6) ---
+        attacks.push({id: 'a_god_surround', type: 'A', name: 'OMNI_LASER'});
+        moves.push({id: 'm_god_illusion', type: 'M', name: 'MIRAGE_STEP'});
+        // ---------------------------
+
+        playSound('god_roar');
+    }
+
     let hasRegen = specials.some(g => g.id === 's_regen');
     let hasBarrier = specials.some(g => g.id === 's_barrier');
     let hasFunnel = specials.some(g => g.id === 's_funnel');
@@ -938,13 +981,14 @@ function initBoss() {
     boss = {
         x: width / 2, y: 100, maxHp: 200 * hpMult * gameFloor, hp: 200 * hpMult * gameFloor, size: bossSize,
         state: 'IDLE', timer: 60, glyphParts: { attacks, moves, fields, specials },
-        cdMult: 1.0 - cdReduction, dmgMult: damageMult, bulletSpeedMult: bulletSpeedMult, color: COLORS.boss,
+        cdMult: 1.0 - cdReduction, dmgMult: damageMult, bulletSpeedMult: bulletSpeedMult, 
+        color: isGodMode ? COLORS.bossGod : COLORS.boss,
         hasRage: hasRage, hasDouble: hasDouble, isRaged: false, drawRot: 0,
         hasRegen: hasRegen, hasBarrier: hasBarrier, barrierActive: false, barrierTimer: 0,
         hasFunnel: hasFunnel, funnels: [], hasThorn: hasThorn, targetX: 0, targetY: 0,
         hasTurret: hasTurret, turretTimer: 0,
         hasCounter: hasCounter, hasWallLine: hasWallLine, wallLineTimer: 0,
-        dropTargetX: 0, vy: 0 
+        dropTargetX: 0, vy: 0, isGodMode: isGodMode
     };
     if(specials.some(g => g.id === 's_tough')) { boss.maxHp *= 1.5; boss.hp = boss.maxHp; }
     if(specials.some(g => g.id === 's_power')) boss.dmgMult *= 1.3;
@@ -955,6 +999,7 @@ function initBoss() {
     }
 
     let statusDiv = document.getElementById('boss-status'); statusDiv.innerHTML = '';
+    if(isGodMode) statusDiv.innerHTML += '<div class="text-xs text-yellow-300 font-bold border border-yellow-500 p-1 text-center mb-1">★ DEUS_EX MODE ★</div>';
     if(boss.hasDouble) statusDiv.innerHTML += '<div class="text-xs text-purple-400 font-bold">★ DOUBLE</div>';
     if(boss.hasRegen) statusDiv.innerHTML += '<div class="text-xs text-green-400 font-bold">? REGEN</div>';
     if(boss.hasBarrier) statusDiv.innerHTML += '<div class="text-xs text-blue-400 font-bold">◆ BARRIER</div>';
@@ -967,10 +1012,12 @@ function initBoss() {
     document.getElementById('boss-hp').style.width = '100%';
     document.getElementById('wave-info').innerText = "MODULES: " + uniqueGlyphs.size; 
 }
+
 function updateBoss() {
     boss.drawRot += 0.02;
     if (boss.hp <= 0) return; 
     if (boss.hasRegen && boss.hp < boss.maxHp) boss.hp += 0.05; 
+    if (boss.isGodMode && frameCount % 10 === 0) createParticle(boss.x + random(-20,20), boss.y + random(-20,20), COLORS.godLight, 'god_aura', 8);
 
     if (boss.hasBarrier) {
         if (!boss.barrierActive) {
@@ -1043,14 +1090,32 @@ function updateNormalBehavior() {
                 boss.currentMove = random(boss.glyphParts.moves);
                 
                 // State Transition Logic based on Move Type
-                if (boss.currentMove.id.includes('warp')) { 
+                if (boss.currentMove.id === 'm_god_blink') {
+                     boss.state = 'IDLE'; boss.timer = 30; // Instant
+                     for(let i=0; i<3; i++) {
+                         setTimeout(() => {
+                             createExplosion(boss.x, boss.y, COLORS.bossGod, 10);
+                             let destX = player.x + random(-200, 200);
+                             let destY = player.y + random(-200, 200);
+                             boss.x = constrain(destX, 50, width-50);
+                             boss.y = constrain(destY, 50, height-50);
+                             playSound('boss_shoot');
+                         }, i * 200);
+                     }
+                }
+                else if (boss.currentMove.id === 'm_god_illusion') {
+                     boss.state = 'ILLUSION_MOVE';
+                     boss.stepCount = 0; 
+                     boss.timer = 0; // Immediate start
+                     playSound('god_roar');
+                }
+                else if (boss.currentMove.id.includes('warp')) { 
                     boss.state = 'MOVE'; boss.timer = 60 * boss.cdMult; // Handled in MOVE default
                 }
                 else if (boss.currentMove.id.includes('dash')) { 
                     boss.state = 'MOVE'; boss.timer = 60 * boss.cdMult; // Handled in MOVE default
                 }
                 else if (boss.currentMove.id === 'm_trail') { 
-                    // CHANGED: Strafe Run now triggers a multi-step sequence
                     boss.state = 'STRAFE_MOVE'; 
                     boss.strafeCount = Math.floor(random(1, 4)); // 1 to 3 times
                     prepareStrafeRun();
@@ -1087,10 +1152,16 @@ function updateNormalBehavior() {
     } else if (boss.state === 'CHARGE') {
         if (boss.timer <= 0) { 
             boss.state = 'ATTACK'; 
-            executeBossAttack(boss.currentAttack); 
-            if (boss.currentAttack.id === 'a_implode') boss.timer = 160;
-            else boss.timer = 20; 
-            
+            if (boss.currentAttack) { // Safety Check
+                executeBossAttack(boss.currentAttack); 
+                if (boss.currentAttack.id === 'a_implode') boss.timer = 160;
+                else if (boss.currentAttack.id === 'a_god_light') boss.timer = 100; // Adjusted for Rain
+                else if (boss.currentAttack.id === 'a_god_wipe') boss.timer = 120;
+                else if (boss.currentAttack.id === 'a_god_surround') boss.timer = 140; // Wait for bit laser
+                else boss.timer = 20; 
+            } else {
+                boss.state = 'IDLE'; boss.timer = 20;
+            }
             if (boss.glyphParts.fields.length > 0 && random() < 0.3) executeBossField(random(boss.glyphParts.fields)); 
         }
     } else if (boss.state === 'ATTACK') {
@@ -1098,7 +1169,6 @@ function updateNormalBehavior() {
     } else if (boss.state === 'MOVE') {
         executeBossMove(boss.currentMove); if (boss.timer <= 0) { boss.state = 'IDLE'; boss.timer = 20 * boss.cdMult; boss.vx = 0; boss.vy = 0; }
     } else if (boss.state === 'STRAFE_MOVE') {
-        // CHANGED: Strafe Run Logic
         boss.x += boss.vx; boss.y += boss.vy;
         if (frameCount % 8 === 0) {
              createProjectile(boss.x, boss.y, random(-1,1), random(-1,1), 'BOSS', 6, 8, {type: 'MINE', timer: 60, friction: 0.9});
@@ -1106,7 +1176,7 @@ function updateNormalBehavior() {
         if (boss.timer <= 0) {
             boss.strafeCount--;
             if (boss.strafeCount > 0) {
-                prepareStrafeRun(); // Setup next run
+                prepareStrafeRun(); 
             } else {
                 boss.state = 'IDLE'; boss.timer = 30; boss.vx = 0; boss.vy = 0;
             }
@@ -1127,6 +1197,27 @@ function updateNormalBehavior() {
             boss.stepCount++; boss.timer = 15;
             if (boss.stepCount >= 3) { boss.state = 'IDLE'; boss.timer = 30; }
         }
+    } else if (boss.state === 'ILLUSION_MOVE') {
+        if (boss.timer <= 0) {
+             // Leave Afterimage
+             createParticle(boss.x, boss.y, COLORS.godLight, 'god_afterimage', boss.size);
+             
+             // Move
+             let angle = random(TWO_PI);
+             let dist = random(100, 200);
+             boss.x = constrain(boss.x + cos(angle)*dist, 50, width-50);
+             boss.y = constrain(boss.y + sin(angle)*dist, 50, height-50);
+             createExplosion(boss.x, boss.y, COLORS.godLight, 5);
+             playSound('boss_shoot');
+             
+             boss.stepCount++;
+             boss.timer = 10; // Short wait between steps
+             
+             if (boss.stepCount >= 5) {
+                 boss.state = 'IDLE'; boss.timer = 40;
+             }
+        }
+        boss.timer--;
     } else if (boss.state === 'SHADOW_RUSH') {
         boss.rushAngle += 0.25; 
         let targetX = player.x + cos(boss.rushAngle) * boss.rushDist;
@@ -1168,14 +1259,13 @@ function updateNormalBehavior() {
 }
 
 function prepareStrafeRun() {
-    // Choose a random point to move towards (pass through player general area)
     let targetX = random(50, width-50);
     let targetY = random(50, height-50);
     let a = atan2(targetY - boss.y, targetX - boss.x);
     let s = 12; if(boss.isRaged) s *= 1.3;
     boss.vx = cos(a) * s;
     boss.vy = sin(a) * s;
-    boss.timer = 20 + Math.random() * 20; // Run duration
+    boss.timer = 20 + Math.random() * 20; 
     playSound('boss_shoot');
 }
 
@@ -1202,12 +1292,61 @@ function executeVineAttack() {
 }
 
 function executeBossAttack(glyph, isDouble=false) {
+    if (!glyph) return;
     if (!isDouble && boss.hasDouble && random() < 0.3) { setTimeout(() => executeBossAttack(glyph, true), 300); createParticle(boss.x, boss.y, '#b0f', 'boom', 10); }
     let angle = atan2(player.y - boss.y, player.x - boss.x); let spd = 6 * boss.bulletSpeedMult; let dmg = 10 * boss.dmgMult; if(boss.isRaged) { spd *= 1.2; dmg *= 1.2; }
     
     playSound('boss_shoot');
 
-    if (glyph.id === 'a_bullet') createProjectile(boss.x, boss.y, cos(angle)*spd, sin(angle)*spd, 'BOSS', 8, dmg);
+    if (glyph.id === 'a_god_light') {
+        // HEAVEN'S FALL: REVISED - Vertical Rain
+        playSound('god_roar');
+        let count = 8;
+        for(let i=0; i<count; i++) {
+            let tx = random(50, width-50);
+            createProjectile(tx, 0, 0, 0, 'BOSS', 20, dmg*2.0, {
+                 type: 'PRE_LASER_RAIN',
+                 timer: 40 + i*5 // Stagger slightly
+            });
+        }
+    }
+    else if (glyph.id === 'a_god_wipe') {
+        // DIVINE CROSS: REVISED - Chaotic Scatter (Reduced Speed)
+        playSound('god_roar');
+        let count = 40; 
+        for(let i=0; i<count; i++) {
+            let a = random(TWO_PI);
+            let s = random(2, 6); 
+            let sz = random(6, 15); 
+            createProjectile(boss.x, boss.y, cos(a)*s, sin(a)*s, 'BOSS', sz, dmg, {
+                type: 'SCATTER_SHOT',
+                timer: 150
+            });
+        }
+    }
+    else if (glyph.id === 'a_god_surround') {
+        // NEW: OMNI_LASER - Adjusted to 4-way Cross
+        playSound('god_roar');
+        let count = 4; // 8 -> 4
+        let radius = 250;
+        
+        for (let i = 0; i < count; i++) {
+             let angle = (TWO_PI / count) * i; 
+             // To ensure it starts from top/right etc. 0 is Right. 
+             // 0: Right, 1: Down, 2: Left, 3: Up. This is a Cross (+).
+             
+             let tx = player.x + cos(angle) * radius;
+             let ty = player.y + sin(angle) * radius;
+             
+             createProjectile(tx, ty, 0, 0, 'BOSS', 20, dmg * 2.5, { // Slightly increased damage since fewer beams
+                 type: 'GOD_BIT',
+                 timer: 60, 
+                 angle: angle,
+                 radius: radius
+             });
+        }
+    }
+    else if (glyph.id === 'a_bullet') createProjectile(boss.x, boss.y, cos(angle)*spd, sin(angle)*spd, 'BOSS', 8, dmg);
     else if (glyph.id === 'a_spread') for(let a of [-0.3, 0, 0.3]) createProjectile(boss.x, boss.y, cos(angle+a)*spd, sin(angle+a)*spd, 'BOSS', 8, dmg);
     else if (glyph.id === 'a_5way') for(let a of [-0.4, -0.2, 0, 0.2, 0.4]) createProjectile(boss.x, boss.y, cos(angle+a)*spd, sin(angle+a)*spd, 'BOSS', 8, dmg);
     else if (glyph.id === 'a_cross') for(let d of [0, PI/2, PI, 3*PI/2]) createProjectile(boss.x, boss.y, cos(d)*spd, sin(d)*spd, 'BOSS', 8, dmg);
@@ -1243,6 +1382,7 @@ function executeBossAttack(glyph, isDouble=false) {
 }
 
 function executeBossMove(glyph) {
+    if (!glyph) return;
     let speed = boss.isRaged ? 1.5 : 1.0;
     if (glyph.id === 'm_chase') {
         let d = dist(boss.x, boss.y, player.x, player.y);
@@ -1261,6 +1401,7 @@ function executeBossMove(glyph) {
 }
 
 function executeBossField(glyph) {
+    if (!glyph) return;
     if (glyph.id === 'f_bomb') {
         let tx = player.x + random(-100, 100); let ty = player.y + random(-100, 100);
         tx = constrain(tx, 50, width-50); ty = constrain(ty, 50, height-50);
@@ -1285,10 +1426,11 @@ function executeBossField(glyph) {
         fields.push({type: 'f_line_pre', axis: 'H', x: width/2, y: y, w: width, h: 60, life: 60, maxLife: 60});
     }
 }
+
 function drawBoss() {
     if (boss.state === 'VANISH_WAIT' || boss.state === 'VANISH_FALL' || boss.state === 'VANISH_LOCK') return;
 
-    push(); let drawColor = boss.isRaged ? COLORS.bossRage : COLORS.boss;
+    push(); let drawColor = boss.color;
     
     if (boss.barrierActive) {
         let alpha = map(boss.barrierHits, 0, 5, 50, 200);
@@ -1317,10 +1459,23 @@ function drawBoss() {
     }
     
     translate(boss.x, boss.y); 
+
+    // GOD MODE HALO EFFECT
+    if (boss.isGodMode) {
+        push();
+        rotate(frameCount * -0.05);
+        noFill(); stroke(COLORS.godLight); strokeWeight(2);
+        for(let i=0; i<6; i++) {
+            rotate(PI/3);
+            line(0, boss.size + 20, 0, boss.size + 40);
+        }
+        ellipse(0,0, boss.size * 2.5);
+        pop();
+    }
     
     let hpW = 80; let hpH = 6;
     noStroke(); fill(0, 0, 0, 150); rect(0, -boss.size - 20, hpW, hpH);
-    fill(boss.isRaged ? '#f00' : '#f0f'); 
+    fill(boss.isRaged ? '#f00' : (boss.isGodMode ? '#ffea00' : '#f0f')); 
     let bossPct = Math.max(0, boss.hp / boss.maxHp);
     rectMode(CORNER); rect(-hpW/2, -boss.size - 23, hpW * bossPct, hpH);
     rectMode(CENTER);
@@ -1419,7 +1574,6 @@ function updateProjectiles() {
                 }
             }
             else if (p.behavior.type === 'IMPLODE') {
-                // CHANGED: Suction active only if Boss is still in ATTACK (Rigid) state
                 if (boss.state === 'ATTACK') {
                     suctionActive = true;
                 }
@@ -1429,12 +1583,59 @@ function updateProjectiles() {
                 p.vx = cos(a) * spd; p.vy = sin(a) * spd;
                 if (dist(p.x, p.y, tx, ty) < 15) remove = true; 
             }
+            else if (p.behavior.type === 'PRE_LASER_RAIN') {
+                p.behavior.timer--;
+                if (p.behavior.timer <= 0) {
+                    remove = true;
+                    // Spawn Actual Laser
+                    createProjectile(p.x, 0, 0, 0, 'BOSS', 50, p.dmg, { // Increased size from 30 to 50
+                        type: 'LASER_BEAM_RAIN',
+                        timer: 20
+                    });
+                    playSound('boom');
+                    createExplosion(p.x, 0, COLORS.godLight, 5);
+                }
+            }
+            else if (p.behavior.type === 'LASER_BEAM_RAIN') {
+                p.behavior.timer--;
+                if (p.behavior.timer <= 0) remove = true;
+            }
+            else if (p.behavior.type === 'GOD_BIT') {
+                 // Stick to player's last known relative pos or rotate?
+                 // Let's just rotate around the spawn point to keep it stable but dynamic
+                 // actually, we want them to surround the player at spawn time and stay there
+                 // Just count down
+                 p.behavior.timer--;
+                 if (p.behavior.timer <= 0) {
+                     remove = true;
+                     // Fire Laser towards player center at spawn time (approx)
+                     // or just fire inwards
+                     let centerX = p.x - cos(p.behavior.angle) * p.behavior.radius;
+                     let centerY = p.y - sin(p.behavior.angle) * p.behavior.radius;
+                     
+                     // Create Laser
+                     createProjectile(p.x, p.y, 0, 0, 'BOSS', 30, p.dmg, {
+                         type: 'GOD_LASER_BEAM',
+                         timer: 20,
+                         targetX: centerX,
+                         targetY: centerY
+                     });
+                     playSound('boom');
+                 }
+            }
+            else if (p.behavior.type === 'GOD_LASER_BEAM') {
+                 p.behavior.timer--;
+                 if (p.behavior.timer <= 0) remove = true;
+            }
+            else if (p.behavior.type === 'SCATTER_SHOT') {
+                // Just moving
+            }
         }
         if(!remove) {
             p.x += p.vx; p.y += p.vy;
             if (p.behavior && p.behavior.type === 'BOUNCE') { let b=false; if(p.x<0||p.x>width){p.vx*=-1;b=true;} if(p.y<0||p.y>height){p.vy*=-1;b=true;} if(b){p.behavior.bounces--; if(p.behavior.bounces<=0)p.behavior=null;} }
             else if (p.x<0||p.x>width||p.y<0||p.y>height) {
-                if (!p.behavior || (p.behavior.type !== 'IMPLODE' && p.behavior.type !== 'TRACE')) remove=true;
+                if (!p.behavior || (p.behavior.type !== 'IMPLODE' && p.behavior.type !== 'TRACE' && p.behavior.type !== 'LASER_BEAM_RAIN' && p.behavior.type !== 'PRE_LASER_RAIN' && p.behavior.type !== 'GOD_LASER_BEAM')) remove=true;
             }
         }
         if(remove) projectiles.splice(i, 1);
@@ -1455,6 +1656,7 @@ function updateProjectiles() {
 }
 
 function drawProjectiles() {
+    rectMode(CORNER); // SAFETY FIX: Ensure rect mode is corner for lasers
     noStroke();
     for (let p of projectiles) {
         if (p.owner === 'PLAYER') fill(COLORS.bulletPlayer);
@@ -1479,18 +1681,50 @@ function drawProjectiles() {
                 fill(flash ? '#ff0' : '#840'); ellipse(p.x, p.y, p.size, p.size);
                 continue;
             }
-            else if (p.behavior.type === 'LASER_BEAM') {
-                push(); translate(p.x, p.y); rotate(atan2(p.vy, p.vx));
-                fill(255, 0, 0); rect(-20, -5, 40, 10);
-                pop();
+            else if (p.behavior.type === 'PRE_LASER_RAIN') {
+                // Dashed Yellow Line (Full Height)
+                let alpha = map(p.behavior.timer, 40, 0, 50, 255);
+                stroke(255, 255, 0, alpha); 
+                strokeWeight(1);
+                drawingContext.setLineDash([10, 10]);
+                line(p.x, -100, p.x, height+100); // Extended off-screen
+                drawingContext.setLineDash([]);
                 continue;
             }
-            else if (p.behavior.type === 'LASER_BEAM_ROT') { 
-                p.behavior.angle += 0.05;
-                push(); translate(p.x, p.y); rotate(p.behavior.angle);
-                fill(255, 0, 0, 150); rect(0, -10, 1000, 20); 
-                pop();
+            else if (p.behavior.type === 'LASER_BEAM_RAIN') {
+                // Thick vertical beam (Full Height)
+                let alpha = map(p.behavior.timer, 20, 0, 255, 0);
+                noStroke();
+                fill(255, 255, 0, alpha);
+                rect(p.x - 25, -50, 50, height + 100); // Extended off-screen
                 continue;
+            }
+            else if (p.behavior.type === 'GOD_BIT') {
+                 // Draw Bit
+                 let alpha = map(p.behavior.timer, 60, 0, 50, 255);
+                 fill(255, 215, 0, alpha);
+                 ellipse(p.x, p.y, 20, 20);
+                 
+                 // Draw Telegraph Line to Center
+                 let cx = p.x - cos(p.behavior.angle) * p.behavior.radius;
+                 let cy = p.y - sin(p.behavior.angle) * p.behavior.radius;
+                 stroke(255, 0, 0, alpha);
+                 strokeWeight(1);
+                 line(p.x, p.y, cx, cy);
+                 continue;
+            }
+            else if (p.behavior.type === 'GOD_LASER_BEAM') {
+                 let alpha = map(p.behavior.timer, 20, 0, 255, 0);
+                 stroke(255, 255, 0, alpha);
+                 strokeWeight(30);
+                 line(p.x, p.y, p.behavior.targetX, p.behavior.targetY);
+                 stroke(255, 255, 255, alpha);
+                 strokeWeight(10);
+                 line(p.x, p.y, p.behavior.targetX, p.behavior.targetY);
+                 continue;
+            }
+            else if (p.behavior.type === 'SCATTER_SHOT') {
+                fill(COLORS.godLight);
             }
             else if (p.behavior.type === 'IMPLODE') {
                 fill('#aaf');
@@ -1501,7 +1735,6 @@ function drawProjectiles() {
     }
 }
 
-// --- RESTORED MISSING FUNCTIONS ---
 function updateFields() {
     for (let i = fields.length - 1; i >= 0; i--) {
         fields[i].life--;
@@ -1711,16 +1944,19 @@ function checkCollisions() {
             }
         } else {
             let hitDist = (p.behavior && (p.behavior.type === 'SHOCKWAVE' || p.behavior.type === 'BLACKHOLE')) ? p.size/2 : 10 + p.size/2;
-            if (p.behavior && p.behavior.type === 'LASER_BEAM_ROT') {
-                 let d = dist(player.x, player.y, p.x, p.y);
-                 if (d < 500) { 
-                     let angleToPlayer = atan2(player.y - p.y, player.x - p.x);
-                     let diff = abs(angleToPlayer - p.behavior.angle);
-                     while(diff > PI) diff -= TWO_PI;
-                     diff = abs(diff);
-                     if (diff < 0.1) hitDist = 1000; 
-                 }
+            
+            // SPECIAL COLLISION CHECKS
+            if (p.behavior && p.behavior.type === 'LASER_BEAM_RAIN') {
+                 // Vertical Beam collision - INCREASED WIDTH
+                 if (player.x > p.x - 25 && player.x < p.x + 25) hitDist = 1000;
             }
+            else if (p.behavior && p.behavior.type === 'GOD_LASER_BEAM') {
+                 // Check distance to line segment
+                 let distToLine = pointLineDist(player.x, player.y, p.x, p.y, atan2(p.behavior.targetY - p.y, p.behavior.targetX - p.x));
+                 if (distToLine < 15) hitDist = 1000; // Hit
+                 else hitDist = -1; // No hit
+            }
+            
             if (dist(p.x, p.y, player.x, player.y) < hitDist) { 
                 if(!player.invincible && player.damageInvincibleTimer <= 0) {
                     playerStats.hp -= p.dmg; 
@@ -1733,7 +1969,7 @@ function checkCollisions() {
                 if (playerStats.hp <= 0) gameOver(); 
             }
         }
-        if (hit && (!p.behavior || (p.behavior.type !== 'SHOCKWAVE' && p.behavior.type !== 'BLACKHOLE' && p.behavior.type !== 'ORBIT_SHOT' && p.behavior.type !== 'LASER_BEAM_ROT' && p.behavior.type !== 'TRACE'))) projectiles.splice(i, 1);
+        if (hit && (!p.behavior || (p.behavior.type !== 'SHOCKWAVE' && p.behavior.type !== 'BLACKHOLE' && p.behavior.type !== 'ORBIT_SHOT' && p.behavior.type !== 'LASER_BEAM_RAIN' && p.behavior.type !== 'TRACE' && p.behavior.type !== 'PRE_LASER_RAIN' && p.behavior.type !== 'GOD_LASER_BEAM'))) projectiles.splice(i, 1);
     }
     
     if (!['JUMP_UP', 'JUMP_WAIT', 'JUMP_LOCK', 'JUMP_LAND', 'VANISH_WAIT', 'VANISH_LOCK', 'VANISH_FALL'].includes(boss.state)) {
@@ -1767,6 +2003,23 @@ function checkCollisions() {
     }
 }
 
+// Utility: Distance from point(px, py) to line defined by start(sx, sy) and angle (MODIFIED to accept angle directly for raycast-like check or simpler line segment check)
+function pointLineDist(px, py, sx, sy, angle) {
+    // For beam segment, we can simplify:
+    // Rotate point P around S by -angle, then check if x is within length and y is within width
+    let dx = px - sx;
+    let dy = py - sy;
+    
+    // Rotate
+    let rx = dx * cos(-angle) - dy * sin(-angle);
+    let ry = dx * sin(-angle) + dy * cos(-angle);
+    
+    // Check if within beam range (assumed length infinite for now, or use max length)
+    // Here we just return absolute Y distance (distance from the beam axis)
+    // Caller checks if this distance is small enough
+    return abs(ry);
+}
+
 // --- GAME FLOW CONTROL ---
 
 function startGame() {
@@ -1774,7 +2027,12 @@ function startGame() {
     SoundManager.playBGM('design'); // Start Design BGM
     playSound('ui');
     gameState = 'DESIGN';
-    ownedGlyphIds = ['a_bullet', 'm_chase', 'f_bomb', 'a_spread'];
+    
+    // DEBUG: Only reset if God Mode wasn't activated by 'G' key
+    if (!debugGodMode) {
+        ownedGlyphIds = ['a_bullet', 'm_chase', 'f_bomb', 'a_spread'];
+    }
+    
     bossConfig = [getGlyphById('a_bullet'), getGlyphById('m_chase')];
     updateDesignUI();
     switchScreen('screen-design');
@@ -1784,7 +2042,8 @@ function startGame() {
 function confirmBoss() {
     playSound('ui');
     if (bossConfig.length === 0) return;
-    let hasA = bossConfig.some(g => g.type === 'A'); let hasM = bossConfig.some(g => g.type === 'M');
+    let hasA = bossConfig.some(g => g.type === 'A' || g.type === 'GOD'); 
+    let hasM = bossConfig.some(g => g.type === 'M' || g.type === 'GOD');
     if (!hasA || !hasM) { document.getElementById('design-error').innerText = "ERROR: 攻撃(A)と行動(M)が最低1つずつ必要です"; return; }
     
     SoundManager.playBGM('battle'); // Switch to Battle BGM
@@ -1854,7 +2113,19 @@ function setupLootPhase() {
     lootPicksRemaining = moduleCount > 10 ? 2 : 1;
     updateLootMessage();
 
+    // Check Unowned
     let unowned = GLYPH_DB.filter(g => !ownedGlyphIds.includes(g.id));
+    
+    // GOD MODE CHECK: If only God Mode remains, OR if user has all others, force God Mode
+    let hasAllNormal = GLYPH_DB.filter(g => g.id !== 's_god').every(g => ownedGlyphIds.includes(g.id));
+    
+    if (hasAllNormal && !ownedGlyphIds.includes('s_god')) {
+        unowned = [getGlyphById('s_god')];
+    } else {
+        // Remove God Mode from normal pool if not ready
+        unowned = unowned.filter(g => g.id !== 's_god');
+    }
+
     if(unowned.length === 0) {
         div.innerHTML = '<div class="col-span-4 text-center text-yellow-400">全ての石板を解析済み<br>ボーナスSP獲得</div>';
         currentSP += 10;
@@ -1862,18 +2133,27 @@ function setupLootPhase() {
         if(document.getElementById('current-sp-display')) document.getElementById('current-sp-display').innerText = currentSP;
         setTimeout(() => setupSkillTreePhase(), 2000); return;
     }
+    
     let choices = [];
-    for(let i=0; i<4; i++) {
-        if(unowned.length === 0) break;
+    let countToPick = Math.min(4, unowned.length);
+
+    // Ensure picks do not exceed available choices
+    if (lootPicksRemaining > countToPick) {
+        lootPicksRemaining = countToPick;
+        updateLootMessage();
+    }
+    
+    for(let i=0; i<countToPick; i++) {
         let idx = Math.floor(random(unowned.length));
         choices.push(unowned[idx]);
         unowned.splice(idx, 1);
     }
+    
     choices.forEach(d => {
         let span = document.createElement('div');
         span.className = `glyph-card p-3 text-sm text-center flex flex-col justify-center items-center h-24 glyph-${d.type}`;
         span.id = `loot-card-${d.id}`;
-        span.innerHTML = `<div class="font-bold text-4xl mb-1">${d.type}</div><div class="text-[10px] leading-tight mt-auto">${d.name}</div>`;
+        span.innerHTML = `<div class="font-bold text-4xl mb-1">${d.type.substring(0,3)}</div><div class="text-[10px] leading-tight mt-auto">${d.name}</div>`;
         
         span.onclick = () => { 
             if(span.classList.contains('disabled')) return;
@@ -1919,19 +2199,32 @@ function updateHUD() {
     document.getElementById('boss-hp').style.width = Math.max(0, bhpPct) + '%';
     document.getElementById('boss-hp-text').innerText = `${Math.ceil(Math.max(0, bhpPct))}%`;
 }
+
+// OPTIMIZED: Added safeguards to prevent errors during UI rendering
 function updateDesignUI() {
     hideTooltip();
     let invDiv = document.getElementById('inventory-grid'); invDiv.innerHTML = '';
+    
+    // SAFEGUARD: Ensure ownedGlyphIds is valid
+    if (!ownedGlyphIds) ownedGlyphIds = [];
+
     ownedGlyphIds.forEach((gid) => {
-        let item = getGlyphById(gid); if(!item || !item.id) return;
+        let item = getGlyphById(gid); 
+        if(!item || !item.id) return; // Safeguard against null items
+        
         let isSet = bossConfig.some(b => b.id === item.id);
         let div = document.createElement('div'); 
+        
+        // Handle GOD type correctly for class names
         div.className = `glyph-card p-1 text-xs glyph-${item.type} ${isSet ? 'equipped' : ''}`;
-        div.innerHTML = `<div class="font-bold text-3xl mt-1">${item.type}</div><div class="text-[9px] mt-auto w-full truncate px-1">${item.name}</div>`;
+        
+        let typeText = item.type.length > 3 ? item.type.substring(0,3) : item.type;
+        div.innerHTML = `<div class="font-bold text-3xl mt-1">${typeText}</div><div class="text-[9px] mt-auto w-full truncate px-1">${item.name}</div>`;
         if(isSet) div.innerHTML += '<div class="equipped-badge">SET</div>';
+        
         div.onclick = () => { playSound('ui'); bossConfig.push(item); updateDesignUI(); };
         div.onmousemove = (e) => showTooltip(item.desc, e.clientX, e.clientY, item.name, item.type);
-        div.onmouseenter = () => playSound('ui'); // FIXED: Sound on enter
+        div.onmouseenter = () => playSound('ui'); 
         div.onmouseleave = () => hideTooltip(); invDiv.appendChild(div);
     });
     
@@ -1941,16 +2234,22 @@ function updateDesignUI() {
     document.getElementById('slots-s').innerHTML = '';
 
     bossConfig.forEach((item, idx) => {
+        if (!item || !item.type) return; // Safeguard
+
         let targetId = 'slots-' + item.type.toLowerCase();
+        if (item.type === 'GOD') targetId = 'slots-s'; // Put God mode in Special slot visually
+        
         let targetContainer = document.getElementById(targetId);
         
         if (targetContainer) {
             let div = document.createElement('div'); 
             div.className = `glyph-card p-1 text-xs glyph-${item.type} w-10 h-10 min-w-[40px]`; 
-            div.innerHTML = `<div class="font-bold text-lg">${item.type}</div><div class="absolute top-0 right-0 text-red-500 font-bold text-[8px] leading-none p-0.5 cursor-pointer">×</div>`;
+            
+            let typeText = item.type.length > 3 ? item.type.substring(0,1) : item.type;
+            div.innerHTML = `<div class="font-bold text-lg">${typeText}</div><div class="absolute top-0 right-0 text-red-500 font-bold text-[8px] leading-none p-0.5 cursor-pointer">×</div>`;
             div.onclick = () => { playSound('ui'); bossConfig.splice(idx, 1); updateDesignUI(); };
             div.onmousemove = (e) => showTooltip(item.desc, e.clientX, e.clientY, item.name, item.type);
-            div.onmouseenter = () => playSound('ui'); // FIXED: Sound on enter
+            div.onmouseenter = () => playSound('ui'); 
             div.onmouseleave = () => hideTooltip(); 
             targetContainer.appendChild(div);
         }
@@ -1964,7 +2263,8 @@ function updateDesignUI() {
     let spPredict = Math.min(5, Math.floor(count * 1.5)); 
     document.getElementById('stat-drop').innerText = `${spPredict} SP`;
     
-    let hasA = bossConfig.some(g => g.type === 'A'); let hasM = bossConfig.some(g => g.type === 'M');
+    let hasA = bossConfig.some(g => g.type === 'A' || g.type === 'GOD'); 
+    let hasM = bossConfig.some(g => g.type === 'M' || g.type === 'GOD');
     let btn = document.getElementById('btn-deploy');
     if (hasA && hasM) { btn.disabled = false; btn.classList.remove('opacity-50', 'cursor-not-allowed'); document.getElementById('design-error').innerText = ""; } 
     else { btn.disabled = true; btn.classList.add('opacity-50', 'cursor-not-allowed'); }
