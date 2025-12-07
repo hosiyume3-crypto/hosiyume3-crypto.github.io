@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Glyph Boss Hunter - God Update v6.2</title>
+    <title>Glyph Boss Hunter - God Update v6.5</title>
     <!-- p5.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
     <!-- Tailwind CSS -->
@@ -314,8 +314,9 @@
 
 <script>
 /**
- * GLYPH BOSS HUNTER - God Update v6.2
- * - REMOVED: VELOCITY_UP (s_fast) from Database
+ * GLYPH BOSS HUNTER - God Update v6.5
+ * - METEOR_SWARM: REMOVED (Deleted glyph, logic, and rendering)
+ * - GOD MODE SFX: Updated attack sound to 'god_attack' (Sharper, more divine tone)
  */
 
 // --- BGM ASSET CONFIGURATION ---
@@ -463,6 +464,19 @@ const SoundManager = {
                 gain.gain.linearRampToValueAtTime(0.0, t + 1.5);
                 osc.start(t); osc.stop(t + 1.5);
                 this.createExplosionSound(1.5);
+            } else if (type === 'god_attack') {
+                // NEW: Sharper, divine chime for attacks
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, t);
+                osc.frequency.exponentialRampToValueAtTime(1200, t + 0.1);
+                osc.frequency.exponentialRampToValueAtTime(400, t + 0.4);
+                
+                gain.gain.setValueAtTime(0.0, t);
+                gain.gain.linearRampToValueAtTime(0.3, t + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+                
+                osc.start(t); osc.stop(t + 0.4);
+                this.createExplosionSound(0.2); // Short sparkle burst
             }
         } catch(e) { console.warn("Audio Play Error", e); }
     },
@@ -952,15 +966,16 @@ function initBoss() {
     let isGodMode = bossConfig.some(g => g.id === 's_god');
     
     if (isGodMode) {
-        damageMult *= 1.5;
+        // damageMult *= 1.5; // REMOVED: Damage multiplier
         // EXISTING GOD ACTIONS
         attacks.push({id: 'a_god_light', type: 'A', name: 'HEAVEN\'S FALL'});
         attacks.push({id: 'a_god_wipe', type: 'A', name: 'DIVINE CROSS'}); 
         moves.push({id: 'm_god_blink', type: 'M', name: 'OMNI_BLINK'});
         
-        // --- NEW GOD ACTIONS (v6) ---
+        // --- NEW GOD ACTIONS (v6.3) ---
         attacks.push({id: 'a_god_surround', type: 'A', name: 'OMNI_LASER'});
         moves.push({id: 'm_god_illusion', type: 'M', name: 'MIRAGE_STEP'});
+        // METEOR_SWARM REMOVED
         // ---------------------------
 
         playSound('god_roar');
@@ -1294,25 +1309,37 @@ function executeVineAttack() {
 function executeBossAttack(glyph, isDouble=false) {
     if (!glyph) return;
     if (!isDouble && boss.hasDouble && random() < 0.3) { setTimeout(() => executeBossAttack(glyph, true), 300); createParticle(boss.x, boss.y, '#b0f', 'boom', 10); }
+    
+    // --- GOD MODE PASSIVE: TRINITY CAST (20% Chance for 3-Burst) ---
+    if (!isDouble && boss.isGodMode && random() < 0.2) {
+        createParticle(boss.x, boss.y, COLORS.godLight, 'god_aura', 25);
+        createExplosion(boss.x, boss.y, COLORS.godLight, 5);
+        playSound('powerup');
+        setTimeout(() => executeBossAttack(glyph, true), 150);
+        setTimeout(() => executeBossAttack(glyph, true), 300);
+    }
+    // ---------------------------------------------------------------
+
     let angle = atan2(player.y - boss.y, player.x - boss.x); let spd = 6 * boss.bulletSpeedMult; let dmg = 10 * boss.dmgMult; if(boss.isRaged) { spd *= 1.2; dmg *= 1.2; }
     
+    // Default sound
     playSound('boss_shoot');
 
     if (glyph.id === 'a_god_light') {
         // HEAVEN'S FALL: REVISED - Vertical Rain
-        playSound('god_roar');
+        playSound('god_attack'); // UPDATED SOUND
         let count = 8;
         for(let i=0; i<count; i++) {
             let tx = random(50, width-50);
             createProjectile(tx, 0, 0, 0, 'BOSS', 20, dmg*2.0, {
                  type: 'PRE_LASER_RAIN',
-                 timer: 40 + i*5 // Stagger slightly
+                 timer: 40 + i*5 
             });
         }
     }
     else if (glyph.id === 'a_god_wipe') {
         // DIVINE CROSS: REVISED - Chaotic Scatter (Reduced Speed)
-        playSound('god_roar');
+        playSound('god_attack'); // UPDATED SOUND
         let count = 40; 
         for(let i=0; i<count; i++) {
             let a = random(TWO_PI);
@@ -1325,20 +1352,16 @@ function executeBossAttack(glyph, isDouble=false) {
         }
     }
     else if (glyph.id === 'a_god_surround') {
-        // NEW: OMNI_LASER - Adjusted to 4-way Cross
-        playSound('god_roar');
-        let count = 4; // 8 -> 4
+        // OMNI_LASER - 4-way Cross
+        playSound('god_attack'); // UPDATED SOUND
+        let count = 4;
         let radius = 250;
         
         for (let i = 0; i < count; i++) {
              let angle = (TWO_PI / count) * i; 
-             // To ensure it starts from top/right etc. 0 is Right. 
-             // 0: Right, 1: Down, 2: Left, 3: Up. This is a Cross (+).
-             
              let tx = player.x + cos(angle) * radius;
              let ty = player.y + sin(angle) * radius;
-             
-             createProjectile(tx, ty, 0, 0, 'BOSS', 20, dmg * 2.5, { // Slightly increased damage since fewer beams
+             createProjectile(tx, ty, 0, 0, 'BOSS', 20, dmg * 2.5, {
                  type: 'GOD_BIT',
                  timer: 60, 
                  angle: angle,
@@ -1601,15 +1624,9 @@ function updateProjectiles() {
                 if (p.behavior.timer <= 0) remove = true;
             }
             else if (p.behavior.type === 'GOD_BIT') {
-                 // Stick to player's last known relative pos or rotate?
-                 // Let's just rotate around the spawn point to keep it stable but dynamic
-                 // actually, we want them to surround the player at spawn time and stay there
-                 // Just count down
                  p.behavior.timer--;
                  if (p.behavior.timer <= 0) {
                      remove = true;
-                     // Fire Laser towards player center at spawn time (approx)
-                     // or just fire inwards
                      let centerX = p.x - cos(p.behavior.angle) * p.behavior.radius;
                      let centerY = p.y - sin(p.behavior.angle) * p.behavior.radius;
                      
@@ -1656,7 +1673,7 @@ function updateProjectiles() {
 }
 
 function drawProjectiles() {
-    rectMode(CORNER); // SAFETY FIX: Ensure rect mode is corner for lasers
+    rectMode(CORNER); 
     noStroke();
     for (let p of projectiles) {
         if (p.owner === 'PLAYER') fill(COLORS.bulletPlayer);
@@ -1682,30 +1699,26 @@ function drawProjectiles() {
                 continue;
             }
             else if (p.behavior.type === 'PRE_LASER_RAIN') {
-                // Dashed Yellow Line (Full Height)
                 let alpha = map(p.behavior.timer, 40, 0, 50, 255);
                 stroke(255, 255, 0, alpha); 
                 strokeWeight(1);
                 drawingContext.setLineDash([10, 10]);
-                line(p.x, -100, p.x, height+100); // Extended off-screen
+                line(p.x, -100, p.x, height+100); 
                 drawingContext.setLineDash([]);
                 continue;
             }
             else if (p.behavior.type === 'LASER_BEAM_RAIN') {
-                // Thick vertical beam (Full Height)
+                // FIXED: Thinner beam width (20px)
                 let alpha = map(p.behavior.timer, 20, 0, 255, 0);
                 noStroke();
                 fill(255, 255, 0, alpha);
-                rect(p.x - 25, -50, 50, height + 100); // Extended off-screen
+                rect(p.x - 10, -50, 20, height + 100); 
                 continue;
             }
             else if (p.behavior.type === 'GOD_BIT') {
-                 // Draw Bit
                  let alpha = map(p.behavior.timer, 60, 0, 50, 255);
                  fill(255, 215, 0, alpha);
                  ellipse(p.x, p.y, 20, 20);
-                 
-                 // Draw Telegraph Line to Center
                  let cx = p.x - cos(p.behavior.angle) * p.behavior.radius;
                  let cy = p.y - sin(p.behavior.angle) * p.behavior.radius;
                  stroke(255, 0, 0, alpha);
@@ -1947,8 +1960,8 @@ function checkCollisions() {
             
             // SPECIAL COLLISION CHECKS
             if (p.behavior && p.behavior.type === 'LASER_BEAM_RAIN') {
-                 // Vertical Beam collision - INCREASED WIDTH
-                 if (player.x > p.x - 25 && player.x < p.x + 25) hitDist = 1000;
+                 // FIXED: Adjusted collision width (20px)
+                 if (player.x > p.x - 10 && player.x < p.x + 10) hitDist = 1000;
             }
             else if (p.behavior && p.behavior.type === 'GOD_LASER_BEAM') {
                  // Check distance to line segment
